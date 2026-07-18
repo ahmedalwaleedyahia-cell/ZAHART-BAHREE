@@ -1,0 +1,31 @@
+import {
+    CreditCard,
+    Banknote,
+    Utensils,
+    Trash2,
+    Pencil,
+    Plus,
+    Search,
+    ShoppingCart,
+    Moon,
+    Sun,
+    Settings,
+    IceCream2,
+} from "lucide-react";
+
+export const Icons = {
+    cash: Banknote,
+    card: CreditCard,
+    food: Utensils,
+    delete: Trash2,
+    edit: Pencil,
+    add: Plus,
+    search: Search,
+    cart: ShoppingCart,
+    themeDark: Moon,
+    themeLight: Sun,
+    settings: Settings,
+    utensils: Utensils,
+    coffee: Coffee,
+    dessert: IceCream2,
+};
