@@ -137,6 +137,7 @@ function ThemeBtn({ isDark, onToggle }) {
 // PASSWORD INPUT
 // ─────────────────────────────────────────────────────────────
 function PasswordInput({
+  id,
   value,
   onChange,
   placeholder = '••••••••',
@@ -146,6 +147,7 @@ function PasswordInput({
   return (
     <div className="lp-input-wrap">
       <input
+        id={id}
         className="lp-input lp-input-padded"
         type={show ? 'text' : 'password'}
         value={value}
@@ -193,7 +195,6 @@ function LoginScreen({ onGoRegister }) {
     const { success, error: err } = await login(email, password)
 
     if (!success) {
-      // تعديل أمان: استخراج نص الخطأ الصريح لمنع تفكيك كائن الخطأ داخل الريأكت
       const errorMessage = err?.message || (typeof err === 'string' ? err : 'بيانات الدخول غير صحيحة أو الحساب غير موجود');
       setError(errorMessage)
     }
@@ -240,10 +241,11 @@ function LoginScreen({ onGoRegister }) {
           </div>
 
           <div className="lp-field">
-            <label className="lp-label" htmlFor="login-password" type="password" id="login-password">
+            <label className="lp-label" htmlFor="login-password">
               كلمة المرور
             </label>
             <PasswordInput
+              id="login-password"
               value={password}
               onChange={e => setPassword(e.target.value)}
             />
