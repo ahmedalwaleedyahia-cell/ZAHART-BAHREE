@@ -31,34 +31,40 @@ export default function PaymentSplit({
       >
         {total > 0 ? (
           <>
-            <div
-              style={{
-                width: `${cashPct}%`,
-                background: '#C9A96E',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 12,
-                fontWeight: 700,
-                color: '#000',
-              }}
-            >
-              {cashPct}%
-            </div>
+            {/* لا نعرض الكاش إلا لو نسبته أكبر من 0 */}
+            {cashPct > 0 && (
+              <div
+                style={{
+                  width: `${cashPct}%`,
+                  background: '#C9A96E',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#000',
+                }}
+              >
+                {cashPct}%
+              </div>
+            )}
 
-            <div
-              style={{
-                width: `${visaPct}%`,
-                background: '#3B82F6',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 12,
-                fontWeight: 700,
-              }}
-            >
-              {visaPct}%
-            </div>
+            {/* لا نعرض الفيزا إلا لو نسبتها أكبر من 0 */}
+            {visaPct > 0 && (
+              <div
+                style={{
+                  width: `${visaPct}%`,
+                  background: '#3B82F6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 12,
+                  fontWeight: 700,
+                }}
+              >
+                {visaPct}%
+              </div>
+            )}
           </>
         ) : (
           <div
