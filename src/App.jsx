@@ -240,7 +240,9 @@ function LoginScreen({ onGoRegister }) {
           </div>
 
           <div className="lp-field">
-            <label className="lp-label" htmlFor="login-password">كلمة المرور</label>
+            <label className="lp-label" htmlFor="login-password" type="password" id="login-password">
+              كلمة المرور
+            </label>
             <PasswordInput
               value={password}
               onChange={e => setPassword(e.target.value)}
