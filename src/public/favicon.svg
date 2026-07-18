@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#1e1e24" />
+      <stop offset="100%" stop-color="#0f0f12" />
+    </radialGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E6C687" />
+      <stop offset="50%" stop-color="#C9A96E" />
+      <stop offset="100%" stop-color="#9A7B43" />
+    </linearGradient>
+  </defs>
+  <circle cx="256" cy="256" r="240" fill="url(#bgGrad)" stroke="url(#goldGrad)" stroke-width="6"/>
+  <g fill="url(#goldGrad)">
+    <circle cx="256" cy="256" r="32"/>
+    <path d="M256,70 C285,130 285,200 256,224 C227,200 227,130 256,70 Z"/>
+    <path d="M256,442 C227,382 227,312 256,288 C285,312 285,382 256,442 Z"/>
+    <path d="M70,256 C130,227 200,227 224,256 C200,285 130,285 70,256 Z"/>
+    <path d="M442,256 C382,285 312,285 288,256 C312,227 382,227 442,256 Z"/>
+    <g transform="rotate(45 256 256)">
+      <path d="M256,70 C285,130 285,200 256,224 C227,200 227,130 256,70 Z"/>
+      <path d="M256,442 C227,382 227,312 256,288 C285,312 285,382 256,442 Z"/>
+      <path d="M70,256 C130,227 200,227 224,256 C200,285 130,285 70,256 Z"/>
+      <path d="M442,256 C382,285 312,285 288,256 C312,227 382,227 442,256 Z"/>
+    </g>
+  </g>
+  <circle cx="256" cy="256" r="130" fill="none" stroke="url(#goldGrad)" stroke-width="2" stroke-dasharray="8,8" opacity="0.6"/>
+</svg>
