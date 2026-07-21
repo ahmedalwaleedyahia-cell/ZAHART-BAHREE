@@ -3,11 +3,11 @@ import { useAuth } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
 import Skeleton from '../components/ui/Skeleton.jsx'
 import { fmtNum, fmtDateTime } from '../utils/format.js'
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import Modal from '../components/ui/Modal.jsx'
 import Empty from '../components/ui/Empty.jsx'
 import ReceiptPreview from '../components/ui/ReceiptPreview.jsx'
-import { ClipboardList, Printer } from 'lucide-react'
+import { ClipboardList, Printer, Search } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 
 export default function OrdersPage({ showToast }) {
@@ -15,6 +15,7 @@ export default function OrdersPage({ showToast }) {
   const { isAdmin } = useAuth()
   const { settings } = useSettings()
   const [receiptOrder, setReceiptOrder] = useState(null)
+  const [search, setSearch] = useState('')
 
   const receiptRef = useRef(null)
 
@@ -63,6 +64,17 @@ body * {
     }
   }
 
+  // فلترة الطلبات بناءً على رقم الفاتورة أو أرقام الطلب أو اسم الكاشير
+  const filteredOrders = useMemo(() => {
+    if (!search.trim()) return orders
+    const q = search.toLowerCase()
+    return orders.filter(o => {
+      const invNum = String(o.invoice_number || o.order_number || '')
+      const cashier = (o.cashier_name || '').toLowerCase()
+      return invNum.toLowerCase().includes(q) || cashier.includes(q)
+    })
+  }, [orders, search])
+
   return (
     <div className="scroll-view">
       {/* Page header */}
@@ -71,19 +83,44 @@ body * {
           <div className="page-title">Order History</div>
           <div className="page-sub">All processed orders — real-time</div>
         </div>
-        <span className="badge badge-gold">{orders.length} orders</span>
+        <span className="badge badge-gold">{filteredOrders.length} orders</span>
+      </div>
+
+      {/* Search Bar matching product management layout */}
+      <div style={{ marginBottom: '20px' }}>
+        <div className="search-wrapper" style={{ width: '100%', position: 'relative' }}>
+          <Search size={18} className="search-icon" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--txt3)' }} />
+          <input
+            className="search-input"
+            type="text"
+            placeholder="Search orders by invoice number or cashier..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%', paddingLeft: '44px', paddingRight: search ? '40px' : '16px' }}
+          />
+          {search && (
+            <button
+              className="search-clear-btn"
+              onClick={() => setSearch('')}
+              type="button"
+              style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)' }}
+            >
+              ✕
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Content */}
       {loading
         ? <Skeleton rows={8} />
-        : orders.length === 0
+        : filteredOrders.length === 0
           ? (
             <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', minHeight: '300px' }}>
               <Empty
                 icon={<ClipboardList size={36} strokeWidth={1.4} />}
-                text="No orders yet"
-                sub="Processed orders will appear here"
+                text={search ? "No matching orders" : "No orders yet"}
+                sub={search ? "Try searching for a different invoice number" : "Processed orders will appear here"}
               />
             </div>
           )
@@ -102,7 +139,7 @@ body * {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map(o => (
+                  {filteredOrders.map(o => (
                     <tr
                       key={o.id}
                       className={o.status === 'cancelled' ? 'row-cancelled' : ''}
