@@ -1,6 +1,5 @@
 // ============================================================
 // src/services/financeService.js
-// Finance Module — Salaries + Expenses + Profit Calculation
 // ============================================================
 
 import { supabase } from '../supabase/supabase.js'
@@ -9,14 +8,13 @@ import { supabase } from '../supabase/supabase.js'
 export const FINANCE_TABLES = {
   SALARIES: 'finance_salaries',
   EXPENSES: 'finance_expenses',
-  SALARY_PAYMENTS: 'salary_payments', // Connected to Supabase Table
+  SALARY_PAYMENTS: 'salary_payments',
 }
 
 export const FINANCE_VIEWS = {
   SUMMARY: 'v_finance_summary',
 }
 
-// ── EXPENSE_CATEGORIES (كائن للتحققات الشرطية داخل المكونات) ──
 export const EXPENSE_CATEGORIES = {
   FOOD: 'food_ingredients',
   FURNITURE: 'furniture_equipment',
@@ -27,7 +25,6 @@ export const EXPENSE_SUBCATEGORIES = {
   MORE_EXPENSES: 'more_expenses',
 }
 
-// ── EXPENSE_CATEGORIES_LIST (مصفوفة لعمل .map() داخل القوائم والصفحات) ──
 export const EXPENSE_CATEGORIES_LIST = [
   {
     value: 'food_ingredients',
@@ -129,15 +126,19 @@ export async function fetchTotalSalaries() {
 }
 
 // ============================================================
-// SALARY PAYMENTS OPERATIONS (SUPABASE CONNECTED)
+// SALARY PAYMENTS OPERATIONS
 // ============================================================
 
-export async function fetchSalaryPayments() {
-  const { data, error } = await supabase
+export async function fetchSalaryPayments(options = {}) {
+  let query = supabase
     .from(FINANCE_TABLES.SALARY_PAYMENTS)
     .select('*')
     .order('payment_date', { ascending: false })
 
+  if (options.dateFrom) query = query.gte('payment_date', options.dateFrom)
+  if (options.dateTo) query = query.lte('payment_date', options.dateTo)
+
+  const { data, error } = await query
   if (error) return { data: [], error: error.message }
   return { data, error: null }
 }
@@ -164,7 +165,7 @@ export async function flushSalaryPayments() {
   const { error } = await supabase
     .from(FINANCE_TABLES.SALARY_PAYMENTS)
     .delete()
-    .neq('id', '00000000-0000-0000-0000-000000000000') // Deletes all rows safely
+    .neq('id', '00000000-0000-0000-0000-000000000000')
 
   if (error) return { error: error.message }
   return { error: null }
@@ -174,13 +175,15 @@ export async function flushSalaryPayments() {
 // EXPENSE OPERATIONS
 // ============================================================
 
-export async function fetchExpenses(category = null) {
+export async function fetchExpenses(category = null, options = {}) {
   let query = supabase
     .from(FINANCE_TABLES.EXPENSES)
     .select('*')
     .order('created_at', { ascending: false })
 
   if (category) query = query.eq('category', category)
+  if (options.dateFrom) query = query.gte('expense_date', options.dateFrom)
+  if (options.dateTo) query = query.lte('expense_date', options.dateTo)
 
   const { data, error } = await query
   if (error) return { data: [], error: error.message }
@@ -240,73 +243,70 @@ export async function deleteExpense(id) {
   return { error: null }
 }
 
-export async function fetchTotalExpenses() {
-  const { data, error } = await supabase
+export async function fetchTotalExpenses(options = {}) {
+  let query = supabase
     .from(FINANCE_TABLES.EXPENSES)
     .select('cost')
 
+  if (options.dateFrom) query = query.gte('expense_date', options.dateFrom)
+  if (options.dateTo) query = query.lte('expense_date', options.dateTo)
+
+  const { data, error } = await query
   if (error) return { total: 0, error: error.message }
   const total = (data || []).reduce((sum, r) => sum + Number(r.cost || 0), 0)
   return { total, error: null }
 }
 
 // ============================================================
-// FINANCE SUMMARY (Net Profit)
+// FINANCE SUMMARY (Filtered Net Profit Calculation)
 // ============================================================
 
-export async function fetchFinanceSummary() {
-  const { data, error } = await supabase
-    .from(FINANCE_VIEWS.SUMMARY)
-    .select('*')
-    .maybeSingle()
+export async function fetchFinanceSummary(options = {}) {
+  // 1. Build Orders Query (Revenue & VAT)
+  let revenueQuery = supabase
+    .from('orders')
+    .select('total_amount, vat_amount, created_at')
+    .eq('status', 'completed')
 
-  if (!error && data) {
-    return {
-      totalSalaries: Number(data.total_salaries ?? data.totalSalaries ?? 0),
-      salariesPaid: Number(data.salaries_paid ?? data.salariesPaid ?? 0),
-      totalExpenses: Number(data.total_expenses ?? data.totalExpenses ?? 0),
-      totalRevenue: Number(data.total_revenue ?? data.totalRevenue ?? 0),
-      vatCollected: Number(data.vat_collected ?? data.vatCollected ?? 0),
-      netProfit: Number(data.net_profit ?? data.netProfit ?? 0),
-      data: {
-        totalSalaries: Number(data.total_salaries ?? data.totalSalaries ?? 0),
-        salariesPaid: Number(data.salaries_paid ?? data.salariesPaid ?? 0),
-        totalExpenses: Number(data.total_expenses ?? data.totalExpenses ?? 0),
-        total_revenue: Number(data.total_revenue ?? data.totalRevenue ?? 0),
-        total_salaries: Number(data.total_salaries ?? data.totalSalaries ?? 0),
-        salaries_paid: Number(data.salaries_paid ?? data.salariesPaid ?? 0),
-        total_expenses: Number(data.total_expenses ?? data.totalExpenses ?? 0),
-        vat_collected: Number(data.vat_collected ?? data.vatCollected ?? 0),
-        net_profit: Number(data.net_profit ?? data.netProfit ?? 0),
-      },
-      error: null
-    }
-  }
+  if (options.dateFrom) revenueQuery = revenueQuery.gte('created_at', options.dateFrom)
+  if (options.dateTo) revenueQuery = revenueQuery.lte('created_at', options.dateTo)
 
+  // 2. Build Salaries Query (Active Base Monthly)
+  const salariesQuery = supabase
+    .from(FINANCE_TABLES.SALARIES)
+    .select('monthly_salary')
+    .eq('is_active', true)
+
+  // 3. Build Salary Payments Query
+  let paymentsQuery = supabase
+    .from(FINANCE_TABLES.SALARY_PAYMENTS)
+    .select('amount, payment_date')
+
+  if (options.dateFrom) paymentsQuery = paymentsQuery.gte('payment_date', options.dateFrom)
+  if (options.dateTo) paymentsQuery = paymentsQuery.lte('payment_date', options.dateTo)
+
+  // 4. Build Expenses Query
+  let expensesQuery = supabase
+    .from(FINANCE_TABLES.EXPENSES)
+    .select('cost, expense_date')
+
+  if (options.dateFrom) expensesQuery = expensesQuery.gte('expense_date', options.dateFrom)
+  if (options.dateTo) expensesQuery = expensesQuery.lte('expense_date', options.dateTo)
+
+  // Execute all queries in parallel
   const [revenueRes, salariesRes, paymentsRes, expensesRes] = await Promise.all([
-    supabase
-      .from('orders')
-      .select('total_amount, vat_amount')
-      .eq('status', 'completed'),
-    supabase
-      .from(FINANCE_TABLES.SALARIES)
-      .select('monthly_salary')
-      .eq('is_active', true),
-    supabase
-      .from(FINANCE_TABLES.SALARY_PAYMENTS)
-      .select('amount'),
-    supabase
-      .from(FINANCE_TABLES.EXPENSES)
-      .select('cost'),
+    revenueQuery,
+    salariesQuery,
+    paymentsQuery,
+    expensesQuery,
   ])
 
-  const total_revenue = (revenueRes.data || [])
-    .reduce((s, o) => s + Number(o.total_amount || 0), 0)
-  const vat_collected = (revenueRes.data || [])
-    .reduce((s, o) => s + Number(o.vat_amount || 0), 0)
+  const total_revenue = (revenueRes.data || []).reduce((s, o) => s + Number(o.total_amount || 0), 0)
+  const vat_collected = (revenueRes.data || []).reduce((s, o) => s + Number(o.vat_amount || 0), 0)
   const total_salaries = (salariesRes.data || []).reduce((s, r) => s + Number(r.monthly_salary || 0), 0)
   const salaries_paid = (paymentsRes.data || []).reduce((s, p) => s + Number(p.amount || 0), 0)
   const total_expenses = (expensesRes.data || []).reduce((s, e) => s + Number(e.cost || 0), 0)
+
   const net_profit = total_revenue - salaries_paid - total_expenses - vat_collected
 
   return {

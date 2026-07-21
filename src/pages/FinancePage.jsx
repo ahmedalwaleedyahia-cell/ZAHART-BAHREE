@@ -11,6 +11,7 @@ import { FinanceProvider } from '../context/FinanceContext.jsx'
 import SalariesSection from '../components/finance/SalariesSection.jsx'
 import ExpensesSection from '../components/finance/ExpensesSection.jsx'
 import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
+import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
 import '../styles/finance.css'
 import '../styles/unified-cards.css'
 
@@ -36,13 +37,19 @@ function FinancePageContent({ showToast }) {
   const [summaryLoading, setSummaryLoading] = useState(true)
 
   // --------------------------
+  // Filter State (Matched with DashboardPage)
+  // --------------------------
+  const [filter, setFilter] = useState({ dateFrom: null, dateTo: null, preset: 'all' })
+
+  // --------------------------
   // Load Summary
   // --------------------------
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true)
 
     try {
-      const res = await fetchFinanceSummary()
+      const options = { dateFrom: filter.dateFrom, dateTo: filter.dateTo }
+      const res = await fetchFinanceSummary(options)
       const data = res?.data || res || {}
 
       if (!res?.error) {
@@ -50,7 +57,6 @@ function FinancePageContent({ showToast }) {
           total_revenue: Number(data.total_revenue ?? data.totalRevenue ?? 0),
           total_salaries: Number(data.total_salaries ?? data.totalSalaries ?? 0),
           salaries_paid: Number(data.salaries_paid ?? data.salariesPaid ?? 0),
-
           total_expenses: Number(data.total_expenses ?? data.totalExpenses ?? 0),
           net_profit: Number(data.net_profit ?? data.netProfit ?? 0),
         })
@@ -77,7 +83,7 @@ function FinancePageContent({ showToast }) {
     } finally {
       setSummaryLoading(false)
     }
-  }, [])
+  }, [filter.dateFrom, filter.dateTo])
 
   useEffect(() => {
     loadSummary()
@@ -92,10 +98,10 @@ function FinancePageContent({ showToast }) {
     return [
       {
         id: 'fin-rev',
-        label: 'Total Revenue',
+        label: filter.preset === 'all' ? 'Total Revenue' : 'Selected Revenue',
         value: `AED ${fmtAED(s.total_revenue ?? 0)}`,
         type: 'revenue',
-        subtitle: 'All completed orders',
+        subtitle: filter.preset === 'all' ? 'All completed orders' : 'Filtered context',
       },
       {
         id: 'fin-sal',
@@ -104,21 +110,19 @@ function FinancePageContent({ showToast }) {
         type: 'salary',
         subtitle: 'Active employees',
       },
-
       {
         id: 'fin-sal-paid',
         label: 'Salaries Paid',
         value: `AED ${fmtAED(s.salaries_paid ?? 0)}`,
         type: 'salary',
-        subtitle: 'Actual paid salaries',
+        subtitle: filter.preset === 'all' ? 'Actual paid salaries' : 'Paid in range',
       },
-
       {
         id: 'fin-exp',
         label: 'Total Expenses',
         value: `AED ${fmtAED(s.total_expenses ?? 0)}`,
         type: 'expense',
-        subtitle: 'All categories',
+        subtitle: filter.preset === 'all' ? 'All categories' : 'Filtered expenses',
       },
       {
         id: 'fin-prf',
@@ -130,9 +134,10 @@ function FinancePageContent({ showToast }) {
         rawValue: s.net_profit ?? 0,
       },
     ]
-  }, [summary])
+  }, [summary, filter.preset])
+
   // --------------------------
-  // Tabs (Updated Icon Size for Premium Contrast)
+  // Tabs
   // --------------------------
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <Layers size={16} strokeWidth={2} /> },
@@ -156,6 +161,9 @@ function FinancePageContent({ showToast }) {
           </div>
         </div>
       </div>
+
+      {/* Dashboard Filter Component */}
+      <DashboardFilter onFilterChange={(f) => setFilter(f)} />
 
       {/* Unified Cards */}
       <UnifiedStatCards
@@ -187,7 +195,9 @@ function FinancePageContent({ showToast }) {
                 <span className="card-title">
                   <DollarSign size={15} /> Revenue Overview
                 </span>
-                <span className="card-badge">All time</span>
+                <span className="card-badge">
+                  {filter.preset === 'all' ? 'All time' : 'Filtered'}
+                </span>
               </div>
 
               {summaryLoading ? (
@@ -291,11 +301,11 @@ function FinancePageContent({ showToast }) {
 
       {/* Tabs Sections */}
       {activeTab === 'salaries' && (
-        <SalariesSection showToast={showToast} onSummaryRefresh={loadSummary} />
+        <SalariesSection showToast={showToast} onSummaryRefresh={loadSummary} filter={filter} />
       )}
 
       {activeTab === 'expenses' && (
-        <ExpensesSection showToast={showToast} onSummaryRefresh={loadSummary} />
+        <ExpensesSection showToast={showToast} onSummaryRefresh={loadSummary} filter={filter} />
       )}
 
     </div>
