@@ -1,137 +1,112 @@
-import { useOrders } from '../context/OrdersContext.jsx'
-import { useAuth } from '../context/AuthContext.jsx'
-import { useSettings } from '../context/SettingsContext.jsx'
-import Skeleton from '../components/ui/Skeleton.jsx'
-import { fmtNum, fmtDateTime } from '../utils/format.js'
-import { useState } from 'react'
-import Modal from '../components/ui/Modal.jsx'
-import Empty from '../components/ui/Empty.jsx'
-import ReceiptPreview from '../components/ui/ReceiptPreview.jsx'
-import { ClipboardList, Printer } from 'lucide-react'
+﻿import { useState, useRef } from 'react'
+import { useOrders } from '../context/OrdersContext'
+import { useSettings } from '../context/SettingsContext'
+import ReceiptPreview from '../components/ui/ReceiptPreview'
+import { useReactToPrint } from 'react-to-print'
+import { Printer, Search, FileText } from 'lucide-react'
 
-export default function OrdersPage({ showToast }) {
-  const { orders, loading, updateOrderStatus } = useOrders()
-  const { isAdmin } = useAuth()
-  const { settings } = useSettings()
-  const [receiptOrder, setReceiptOrder] = useState(null)
+export default function OrdersPage() {
+    const { orders } = useOrders()
+    const { settings } = useSettings()
+    const [selectedOrder, setSelectedOrder] = useState(null)
+    const [search, setSearch] = useState('')
 
-  async function handleCancel(id) {
-    if (!confirm('Cancel this order?')) return
-    const { error } = await updateOrderStatus(id, 'cancelled')
-    if (error) {
-      showToast(error, 'error')
-    } else {
-      showToast('Order cancelled', 'info')
-    }
-  }
+    const receiptRef = useRef(null)
 
-  return (
-    <div className="scroll-view">
-      {/* Page header */}
-      <div className="page-header">
-        <div>
-          <div className="page-title">Order History</div>
-          <div className="page-sub">All processed orders — real-time</div>
+    const handlePrint = useReactToPrint({
+        contentRef: receiptRef,
+        documentTitle: `Receipt-${selectedOrder?.invoice_number || '1'}`,
+        removeAfterPrint: true,
+        pageStyle: `
+@page {
+    size: 80mm auto;
+    margin: 0;
+}
+html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+}
+body * {
+    visibility: hidden;
+}
+#receipt, #receipt * {
+    visibility: visible;
+}
+#receipt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 3mm !important;
+    margin: 0 !important;
+    box-sizing: border-box !important;
+    background: white !important;
+    color: black !important;
+}
+`
+    })
+
+    const filteredOrders = orders.filter(o => 
+        (o.invoice_number || '').toString().includes(search) ||
+        (o.id || '').toString().includes(search)
+    )
+
+    return (
+        <div style={{ padding: '20px' }}>
+            <h2>Order History</h2>
+            <p style={{ color: 'var(--txt3)', marginBottom: '20px' }}>Full order history & receipts</p>
+
+            <div style={{ display: 'flex', gap: '20px' }}>
+                <div style={{ flex: 1 }}>
+                    <div style={{ marginBottom: '15px', position: 'relative' }}>
+                        <Search size={18} style={{ position: 'absolute', left: '12px', top: '12px', color: '#888' }} />
+                        <input
+                            type="text"
+                            placeholder="Search orders..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            style={{ width: '100%', padding: '10px 10px 10px 40px', borderRadius: '8px', border: '1px solid #ddd' }}
+                        />
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {filteredOrders.map(order => (
+                            <div 
+                                key={order.id} 
+                                onClick={() => setSelectedOrder(order)}
+                                style={{
+                                    padding: '15px',
+                                    borderRadius: '8px',
+                                    background: selectedOrder?.id === order.id ? 'var(--gold-light, #fff8e7)' : '#fff',
+                                    border: selectedOrder?.id === order.id ? '2px solid var(--gold, #c9a96e)' : '1px solid #eee',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                <div style={{ fontWeight: 'bold' }}>Order #{order.invoice_number || order.id}</div>
+                                <div style={{ fontSize: '12px', color: '#666' }}>{new Date(order.created_at).toLocaleString()}</div>
+                                <div style={{ marginTop: '5px', fontWeight: '600' }}>AED {order.total_amount || order.total}</div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {selectedOrder && (
+                    <div style={{ width: '380px', background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #eee' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <span style={{ fontWeight: 'bold', fontSize: '16px' }}>Receipt #{selectedOrder.invoice_number || selectedOrder.id}</span>
+                            <button className="btn btn-gold btn-sm" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                <Printer size={16} /> PRINT
+                            </button>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                            <ReceiptPreview ref={receiptRef} order={selectedOrder} settings={settings} />
+                        </div>
+                    </div>
+                )}
+            </div>
         </div>
-        <span className="badge badge-gold">{orders.length} orders</span>
-      </div>
-
-      {/* Content */}
-      {loading
-        ? <Skeleton rows={8} />
-        : orders.length === 0
-          ? (
-            <div style={{ display: 'flex', flex: 1, alignItems: 'center', justifyContent: 'center', width: '100%', height: '100%', minHeight: '300px' }}>
-              <Empty
-                icon={<ClipboardList size={36} strokeWidth={1.4} />}
-                text="No orders yet"
-                sub="Processed orders will appear here"
-              />
-            </div>
-          )
-          : (
-            <div className="card table-card">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Order #</th>
-                    <th>Items</th>
-                    <th>Cashier</th>
-                    <th>Payment</th>
-                    <th>Time</th>
-                    <th>Total (AED)</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map(o => (
-                    <tr
-                      key={o.id}
-                      className={o.status === 'cancelled' ? 'row-cancelled' : ''}
-                    >
-                      <td>
-                        <span className="order-num">
-                          INV-{String(o.invoice_number || o.order_number).padStart(5, '0')}
-                        </span>
-                      </td>
-                      <td className="items-cell">
-                        {o.items?.slice(0, 2).map(i => `${i.quantity}× ${i.product_name}`).join(', ')}
-                        {(o.items?.length || 0) > 2 && ` +${o.items.length - 2}`}
-                      </td>
-                      <td style={{ fontSize: 12.5 }}>{o.cashier_name}</td>
-                      <td>
-                        <span className={`badge badge-${o.payment_method === 'cash' ? 'green' : 'blue'}`}>
-                          {o.payment_method}
-                        </span>
-                      </td>
-                      <td className="time-cell">{fmtDateTime(o.created_at)}</td>
-                      <td><strong>AED {fmtNum(o.total_amount)}</strong></td>
-                      <td className="action-cell">
-                        {/* Receipt button */}
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => setReceiptOrder(o)}
-                          title="View receipt"
-                        >
-                          <Printer size={13} strokeWidth={2} />
-                        </button>
-                        {/* Cancel — admin only, completed orders only */}
-                        {isAdmin && o.status === 'completed' && (
-                          <button
-                            className="btn btn-danger btn-sm"
-                            onClick={() => handleCancel(o.id)}
-                            title="Cancel order"
-                          >
-                            ✕
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )
-      }
-
-      {/* Receipt modal */}
-      {receiptOrder && (
-        <Modal onClose={() => setReceiptOrder(null)}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <div className="modal-title" style={{ marginBottom: 0 }}>
-              Receipt #{receiptOrder.order_number}
-            </div>
-            <button
-              className="btn btn-gold btn-sm"
-              onClick={() => window.print()}
-            >
-              <Printer size={13} strokeWidth={2} />
-              Print
-            </button>
-          </div>
-          <ReceiptPreview order={receiptOrder} settings={settings} />
-        </Modal>
-      )}
-    </div>
-  )
+    )
 }
