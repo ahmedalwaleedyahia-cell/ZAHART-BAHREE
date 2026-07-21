@@ -405,7 +405,6 @@ body * {
                         <button className="btn btn-gold btn-sm" onClick={handlePrint} >
                             <Printer size={16} /> Print Receipt
                         </button>
-
                     </div>
 
                     {/* الحاوية المخصصة للطباعة التي تلتقطها مكتبة react-to-print */}

@@ -2135,19 +2135,19 @@ select {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   23. RECEIPT
+   23. RECEIPT 
    ══════════════════════════════════════════════════════════════ */
-receipt {
-  font-family: 'Courier New', monospace;
-  background: #fff;
-  color: #000;
+.receipt {
+  font-family: 'Outfit', 'Courier New', monospace;
+  background: #fff !important;
+  color: #000 !important;
   width: 80mm;
   max-width: 80mm;
-  margin: 0;
-  padding: 5mm;
+  margin: 0 auto;
+  padding: 4mm;
   box-sizing: border-box;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .r-center {
@@ -2156,29 +2156,29 @@ receipt {
 }
 
 .r-logo {
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 
 .r-sub {
   font-size: 11px;
   color: #000;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 
 .r-divider {
   border: 0;
   border-top: 1px dashed #000;
-  margin: 8px 0;
+  margin: 6px 0;
   width: 100%;
 }
 
 .r-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 5px;
   width: 100%;
-  padding: 3px 0;
+  padding: 2px 0;
   word-break: break-word;
 }
 
@@ -2203,43 +2203,43 @@ receipt {
   font-size: 15px;
   font-weight: 900;
   border-top: 2px solid #000;
-  padding-top: 8px;
-  margin-top: 6px;
+  padding-top: 6px;
+  margin-top: 4px;
 }
 
 .r-sub-line {
   font-size: 10px;
-  color: #000;
-  padding-left: 14px;
-  margin-bottom: 4px;
+  color: #333;
+  padding-left: 10px;
+  margin-bottom: 2px;
 }
 
 .r-footer {
   text-align: center;
-  font-size: 10px;
+  font-size: 10.5px;
   color: #000;
-  line-height: 1.7;
-  margin-top: 10px;
-}
-
-.r-footer strong {
-  color: #000;
+  line-height: 1.5;
+  margin-top: 8px;
 }
 
 @media print {
-  .receipt {
-    width: 80mm;
-    max-width: 80mm;
-    padding: 0;
-    margin: 0 auto;
-    box-shadow: none;
-    font-size: 11px;
+  @page {
+    size: 80mm auto;
+    margin: 0;
   }
 
   body {
-    margin: 0;
-    padding: 0;
-    background: white;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .receipt {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 3mm !important;
+    margin: 0 auto !important;
+    box-shadow: none !important;
   }
 }
 
