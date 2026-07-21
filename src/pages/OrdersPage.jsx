@@ -64,7 +64,6 @@ body * {
     }
   }
 
-  // فلترة الطلبات بناءً على رقم الفاتورة أو أرقام الطلب أو اسم الكاشير
   const filteredOrders = useMemo(() => {
     if (!search.trim()) return orders
     const q = search.toLowerCase()
@@ -86,14 +85,14 @@ body * {
         <span className="badge badge-gold">{filteredOrders.length} orders</span>
       </div>
 
-      {/* Search Bar matching product management layout */}
+      {/* Search Bar */}
       <div style={{ marginBottom: '20px' }}>
         <div className="search-wrapper" style={{ width: '100%', position: 'relative' }}>
           <Search size={18} className="search-icon" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--txt3)' }} />
           <input
             className="search-input"
             type="text"
-            placeholder="Search orders by invoice number or cashier..."
+            placeholder="Search orders..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: '44px', paddingRight: search ? '40px' : '16px' }}
@@ -120,7 +119,7 @@ body * {
               <Empty
                 icon={<ClipboardList size={36} strokeWidth={1.4} />}
                 text={search ? "No matching orders" : "No orders yet"}
-                sub={search ? "Try searching for a different invoice number" : "Processed orders will appear here"}
+                sub={search ? "Try searching for another term" : "Processed orders will appear here"}
               />
             </div>
           )
