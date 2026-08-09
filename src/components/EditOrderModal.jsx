@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+﻿import { useState, useMemo } from 'react'
 import { useOrders } from '../context/OrdersContext.jsx'
 import { Trash2, Plus, Minus, PackagePlus, X } from 'lucide-react'
 
@@ -9,6 +9,17 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
   
   const [selectedProductId, setSelectedProductId] = useState('')
   const [addQty, setAddQty] = useState(1)
+
+  // Group products by category dynamically
+  const groupedProducts = useMemo(() => {
+    const groups = {}
+    products.forEach(p => {
+      const cat = p.category || 'Other'
+      if (!groups[cat]) groups[cat] = []
+      groups[cat].push(p)
+    })
+    return groups
+  }, [products])
 
   function handleQtyChange(index, delta) {
     setItems(prev => prev.map((item, i) => {
@@ -104,7 +115,7 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
         left: 0,
         right: 0,
         bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
+        backgroundColor: 'rgba(0, 0, 0, 0.82)',
         backdropFilter: 'blur(6px)',
         display: 'flex',
         alignItems: 'center',
@@ -121,8 +132,8 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
           padding: '24px', 
           borderRadius: '16px',
           backgroundColor: '#1b1917',
-          border: '1px solid rgba(212, 175, 55, 0.25)',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 20px rgba(212, 175, 55, 0.08)',
+          border: '1px solid rgba(197, 160, 89, 0.3)',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 25px rgba(197, 160, 89, 0.08)',
           color: '#f4f4f5',
           fontFamily: 'inherit'
         }}
@@ -130,8 +141,8 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: '700', color: '#d4af37', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Edit Order <span style={{ backgroundColor: 'rgba(212, 175, 55, 0.12)', color: '#d4af37', padding: '2px 8px', borderRadius: '6px', fontSize: '12px', border: '1px solid rgba(212, 175, 55, 0.3)', fontWeight: '600' }}>INV-{orderNumStr}</span>
+            <div style={{ fontSize: '18px', fontWeight: '700', color: '#c5a059', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              Edit Order <span style={{ backgroundColor: 'rgba(197, 160, 89, 0.15)', color: '#c5a059', padding: '2px 8px', borderRadius: '6px', fontSize: '12px', border: '1px solid rgba(197, 160, 89, 0.3)', fontWeight: '600' }}>INV-{orderNumStr}</span>
             </div>
             <div style={{ fontSize: '12px', color: '#a1a1aa', marginTop: '4px' }}>
               Modify items, quantities, or add products
@@ -145,7 +156,7 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
           </button>
         </div>
 
-        {/* Existing Items Container */}
+        {/* Existing Items */}
         <div style={{ 
           maxHeight: '220px', 
           overflowY: 'auto', 
@@ -184,10 +195,10 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#262320', borderRadius: '8px', padding: '2px', border: '1px solid rgba(212, 175, 55, 0.15)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#262320', borderRadius: '8px', padding: '2px', border: '1px solid rgba(197, 160, 89, 0.2)' }}>
                       <button 
                         onClick={() => handleQtyChange(idx, -1)} 
-                        style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center' }}
+                        style={{ background: 'transparent', border: 'none', color: '#c5a059', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center' }}
                       >
                         <Minus size={13} />
                       </button>
@@ -196,7 +207,7 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
                       </span>
                       <button 
                         onClick={() => handleQtyChange(idx, 1)} 
-                        style={{ background: 'transparent', border: 'none', color: '#d4af37', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center' }}
+                        style={{ background: 'transparent', border: 'none', color: '#c5a059', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center' }}
                       >
                         <Plus size={13} />
                       </button>
@@ -225,10 +236,10 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
           backgroundColor: '#121110', 
           padding: '14px', 
           borderRadius: '12px', 
-          border: '1px solid rgba(212, 175, 55, 0.18)',
+          border: '1px solid rgba(197, 160, 89, 0.2)',
           marginBottom: '20px' 
         }}>
-          <div style={{ fontWeight: '600', fontSize: '12px', color: '#d4af37', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ fontWeight: '600', fontSize: '12px', color: '#c5a059', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             <PackagePlus size={14} /> Add Product
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -241,17 +252,21 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
                 borderRadius: '8px', 
                 backgroundColor: '#262320', 
                 color: '#ffffff', 
-                border: '1px solid rgba(212, 175, 55, 0.25)',
+                border: '1px solid rgba(197, 160, 89, 0.3)',
                 fontSize: '13px',
                 outline: 'none',
                 cursor: 'pointer'
               }}
             >
               <option value="" style={{ backgroundColor: '#1b1917', color: '#fff' }}>Select product...</option>
-              {products.map(p => (
-                <option key={p.id} value={p.id} style={{ backgroundColor: '#1b1917', color: '#fff' }}>
-                  {p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}
-                </option>
+              {Object.keys(groupedProducts).map(catName => (
+                <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`} style={{ backgroundColor: '#1b1917', color: '#c5a059', fontWeight: '700' }}>
+                  {groupedProducts[catName].map(p => (
+                    <option key={p.id} value={p.id} style={{ backgroundColor: '#262320', color: '#fff', fontWeight: 'normal' }}>
+                      {p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}
+                    </option>
+                  ))}
+                </optgroup>
               ))}
             </select>
             <input 
@@ -266,7 +281,7 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
                 borderRadius: '8px', 
                 backgroundColor: '#262320', 
                 color: '#ffffff', 
-                border: '1px solid rgba(212, 175, 55, 0.25)',
+                border: '1px solid rgba(197, 160, 89, 0.3)',
                 fontSize: '13px',
                 outline: 'none'
               }} 
@@ -274,7 +289,7 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
             <button 
               onClick={handleAddNewItem}
               style={{ 
-                background: 'linear-gradient(135deg, #d4af37 0%, #b8860b 100%)', 
+                background: 'linear-gradient(135deg, #c5a059 0%, #a37f3f 100%)', 
                 color: '#121110', 
                 border: 'none', 
                 padding: '9px 16px', 
@@ -282,7 +297,7 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
                 fontWeight: '700', 
                 fontSize: '13px', 
                 cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(212, 175, 55, 0.25)'
+                boxShadow: '0 2px 8px rgba(197, 160, 89, 0.2)'
               }}
             >
               Add
@@ -300,7 +315,7 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
           marginBottom: '20px'
         }}>
           <span style={{ fontSize: '13.5px', color: '#a1a1aa', fontWeight: '500' }}>New Total Amount:</span>
-          <span style={{ fontSize: '20px', fontWeight: '800', color: '#d4af37' }}>
+          <span style={{ fontSize: '20px', fontWeight: '800', color: '#c5a059' }}>
             AED {total.toFixed(2)}
           </span>
         </div>
@@ -318,7 +333,7 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
             onClick={handleSaveChanges} 
             disabled={saving} 
             style={{ 
-              background: 'linear-gradient(135deg, #d4af37 0%, #b8860b 100%)', 
+              background: 'linear-gradient(135deg, #c5a059 0%, #a37f3f 100%)', 
               color: '#121110', 
               border: 'none', 
               padding: '9px 22px', 
@@ -326,7 +341,7 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
               fontWeight: '700', 
               fontSize: '13px', 
               cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(212, 175, 55, 0.3)'
+              boxShadow: '0 4px 12px rgba(197, 160, 89, 0.25)'
             }}
           >
             {saving ? 'Saving...' : 'Save Changes'}
