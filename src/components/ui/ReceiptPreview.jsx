@@ -1,9 +1,4 @@
-// ─────────────────────────────────────────────────────────────
-// RECEIPT COMPONENT
-// Path: src/components/ui/ReceiptPreview.jsx
-// ─────────────────────────────────────────────────────────────
-
-import { forwardRef } from 'react'
+﻿import { forwardRef } from 'react'
 import { fmtDateTime, fmtNum } from '../../utils/format.js'
 
 const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
@@ -13,10 +8,10 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
     const ts = fmtDateTime(order.created_at || order.time)
     const items = order.items || []
 
-    const paymentMethod =
-        (order.payment_method || order.payment) === 'cash'
-            ? 'Cash'
-            : 'Visa'
+    const pm = (order.payment_method || order.payment || '').toLowerCase()
+    const paymentMethodDisplay =
+        pm === 'cash' ? 'Cash' :
+        pm === 'unpaid' ? 'UNPAID / غير مدفوع' : 'Visa'
 
     const subtotal = Number(order.subtotal || 0)
 
@@ -33,10 +28,8 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
 
     const vatRate = Number(order.vat_rate ?? s.vat_rate ?? 0)
 
-    // حساب المبلغ الخاضع للضريبة
     const taxableAmount = Math.max(0, subtotal - discountAmount)
 
-    // حساب الضريبة بدقة متوافقة مع حسابات POS
     const calculatedVat =
         vatRate > 0
             ? Number(order.vat_amount ?? (taxableAmount * (vatRate / 100)))
@@ -121,7 +114,7 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
 
             <div className="r-row">
                 <span>Payment</span>
-                <span className="r-bold">{paymentMethod}</span>
+                <span className="r-bold" style={pm === 'unpaid' ? { color: '#dc2626', fontWeight: '900' } : {}}>{paymentMethodDisplay}</span>
             </div>
 
             <div className="r-divider" />
@@ -190,27 +183,19 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
                 <span>AED {fmtNum(totalAmount)}</span>
             </div>
 
-            {paymentMethod === 'Cash' && (
+            {pm === 'cash' && (
                 <>
                     <div className="r-row" style={{ marginTop: '4px' }}>
                         <span>Cash Received / المدفوع</span>
                         <span>
-                            AED {fmtNum(
-                                order.cash_given ||
-                                order.cashGiven ||
-                                0
-                            )}
+                            AED {fmtNum(order.cash_given || order.cashGiven || 0)}
                         </span>
                     </div>
 
                     <div className="r-row">
                         <span>Change / المتبقي</span>
                         <span className="r-bold">
-                            AED {fmtNum(
-                                order.change_amount ||
-                                order.change ||
-                                0
-                            )}
+                            AED {fmtNum(order.change_amount || order.change || 0)}
                         </span>
                     </div>
                 </>

@@ -1,9 +1,4 @@
-// ============================================================
-// src/context/OrdersContext.jsx
-// Cart state + order history + realtime order stream
-// ============================================================
-
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
+﻿import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { createOrder, fetchOrders, fetchTodaySummary, subscribeToOrders } from '../services/orderService.js'
 import { updateOrderStatus as updateOrderStatusService } from '../services/orderService.js'
 import { supabase } from '../supabase/supabase.js'
@@ -30,10 +25,8 @@ export function OrdersProvider({ children }) {
   const [processing, setProcessing] = useState(false)
   const [lastOrder, setLastOrder] = useState(null)
 
-  // قراءة نسبة الضريبة ديناميكياً من الإعدادات مباشرة
   const [dynamicVatRate, setDynamicVatRate] = useState(0)
 
-  // التزامن مع تحديثات الـ vatRate القادمة من شاشة الإعدادات
   useEffect(() => {
     if (settings?.vat_rate !== undefined) {
       setDynamicVatRate(Number(settings.vat_rate))
@@ -42,7 +35,6 @@ export function OrdersProvider({ children }) {
 
   const channelRef = useRef(null)
 
-  // ---- Load orders + today summary ----
   const loadOrders = useCallback(async () => {
     setLoading(true)
     const [ordersResult, summaryResult] = await Promise.all([
@@ -56,7 +48,6 @@ export function OrdersProvider({ children }) {
 
   useEffect(() => { if (profile) loadOrders() }, [profile, loadOrders])
 
-  // ---- Realtime order feed ----
   useEffect(() => {
     if (!profile) return
 
@@ -77,8 +68,6 @@ export function OrdersProvider({ children }) {
       }
     }
   }, [profile])
-
-  // ---- CART OPERATIONS ----
 
   const addToCart = useCallback((product) => {
     setCart(prev => {
@@ -110,26 +99,13 @@ export function OrdersProvider({ children }) {
     setPaymentMethod('cash')
   }, [])
 
-  // ---- COMPUTED TOTALS ----
-
-  const subtotal = cart.reduce(
-    (acc, item) => acc + Number(item.price) * Number(item.qty),
-    0
-  )
-  const discountAmount =
-    subtotal * (Number(discountPct || 0) / 100)
-  const taxable =
-    Math.max(0, subtotal - discountAmount)
-  const vatAmount =
-    dynamicVatRate > 0
-      ? taxable * (dynamicVatRate / 100)
-      : 0
-  const totalAmount =
-    taxable + vatAmount
+  const subtotal = cart.reduce((acc, item) => acc + Number(item.price) * Number(item.qty), 0)
+  const discountAmount = subtotal * (Number(discountPct || 0) / 100)
+  const taxable = Math.max(0, subtotal - discountAmount)
+  const vatAmount = dynamicVatRate > 0 ? taxable * (dynamicVatRate / 100) : 0
+  const totalAmount = taxable + vatAmount
   const changeAmount = cashGiven ? Math.max(0, parseFloat(cashGiven) - totalAmount) : 0
   const cartCount = cart.reduce((acc, item) => acc + item.qty, 0)
-
-  // ---- PROCESS PAYMENT ----
 
   const processPayment = useCallback(async () => {
     if (cart.length === 0) return { error: 'Cart is empty' }
@@ -142,11 +118,10 @@ export function OrdersProvider({ children }) {
 
     setProcessing(true)
 
-    // دالة توليد رقم فاتورة عشوائي بالكامل لمنع التعارض نهائياً 
     const generateUniqueInvoiceNumber = () => {
-      const timestamp = Date.now().toString(); // 13 خانة تعبر عن الوقت بالملي ثانية
-      const randomDigits = Math.floor(1000 + Math.random() * 9000).toString(); // 4 خانات عشوائية تماماً
-      return parseInt(timestamp + randomDigits); // سينتج رقم نقي طوله 17 خانة مستحيل تكراره
+      const timestamp = Date.now().toString()
+      const randomDigits = Math.floor(1000 + Math.random() * 9000).toString()
+      return parseInt(timestamp + randomDigits)
     }
 
     const orderData = {
@@ -172,18 +147,10 @@ export function OrdersProvider({ children }) {
       quantity: item.qty,
     }))
 
-    // طباعة البيانات في الكونسول للمراقبة الذاتية قبل الإرسال
-    console.log("إرسال الطلب بالبيانات التالية:", orderData)
-
     const { data, error } = await createOrder(orderData, items)
-
     setProcessing(false)
 
-    if (error) {
-      // طباعة تفصيلية للخطأ لمساعدتك على قراءته فوراً من الكونسول في حال حدوثه
-      console.error("تفاصيل فشل عملية الدفع:", error)
-      return { error }
-    }
+    if (error) return { error }
 
     setLastOrder({
       ...data,
@@ -199,12 +166,28 @@ export function OrdersProvider({ children }) {
     })
     clearCart()
     return { data, error: null }
-  }, [cart, processing, paymentMethod, cashGiven, totalAmount, subtotal,
-    discountPct, discountAmount, dynamicVatRate, vatAmount, changeAmount,
-    orderNotes, profile, clearCart])
+  }, [cart, processing, paymentMethod, cashGiven, totalAmount, subtotal, discountPct, discountAmount, dynamicVatRate, vatAmount, changeAmount, orderNotes, profile, clearCart])
 
   const updateOrderStatus = useCallback(async (id, status) => {
     return await updateOrderStatusService(id, status)
+  }, [])
+
+  // دالة تحديث طريقة الدفع لطلب محدد
+  const updatePaymentMethod = useCallback(async (id, newMethod) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({ payment_method: newMethod })
+        .eq('id', id)
+        .select()
+
+      if (error) throw error
+
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, payment_method: newMethod } : o))
+      return { data, error: null }
+    } catch (err) {
+      return { error: err.message || 'Failed to update payment method' }
+    }
   }, [])
 
   const value = {
@@ -220,6 +203,7 @@ export function OrdersProvider({ children }) {
     processPayment,
     reload: loadOrders,
     updateOrderStatus,
+    updatePaymentMethod,
   }
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>

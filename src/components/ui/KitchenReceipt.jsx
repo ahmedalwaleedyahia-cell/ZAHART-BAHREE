@@ -1,4 +1,4 @@
-import { forwardRef } from 'react'
+﻿import { forwardRef } from 'react'
 import { fmtNum, fmtDateTime } from '../../utils/format.js'
 import { Utensils } from 'lucide-react'
 
@@ -6,7 +6,11 @@ const KitchenReceipt = forwardRef(({ order }, ref) => {
     if (!order) return null
 
     const items = order.items || []
-    const paymentMethod = (order.payment_method || order.payment) === 'cash' ? 'Cash' : 'Visa'
+    const pm = (order.payment_method || order.payment || '').toLowerCase()
+    const paymentMethodDisplay =
+        pm === 'cash' ? 'Cash' :
+        pm === 'unpaid' ? 'UNPAID / غير مدفوع' : 'Visa'
+
     const totalAmount = Number(order.total_amount || order.total || 0)
     const ts = fmtDateTime(order.created_at || order.time)
 
@@ -63,7 +67,7 @@ const KitchenReceipt = forwardRef(({ order }, ref) => {
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginTop: '6px' }}>
                 <span>Payment Method:</span>
-                <span style={{ fontWeight: '800' }}>{paymentMethod}</span>
+                <span style={{ fontWeight: '800', color: pm === 'unpaid' ? '#dc2626' : '#000' }}>{paymentMethodDisplay}</span>
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: '900', borderTop: '2px solid #000', paddingTop: '6px', marginTop: '6px' }}>

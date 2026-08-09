@@ -1,6 +1,4 @@
-﻿// POS VIEW — Full cashier terminal
-// Path: src/pages/PosPage.jsx
-import { useProducts } from '../context/ProductsContext'
+﻿import { useProducts } from '../context/ProductsContext'
 import { useOrders } from '../context/OrdersContext'
 import { useSettings } from '../context/SettingsContext'
 import { useState, useMemo, useRef } from 'react'
@@ -19,6 +17,7 @@ import {
     Search,
     Layers,
     Utensils,
+    Clock,
 } from 'lucide-react'
 
 export default function PosPage({ showToast }) {
@@ -41,7 +40,6 @@ export default function PosPage({ showToast }) {
     const [successModal, setSuccessModal] = useState(false)
     const [receiptModal, setReceiptModal] = useState(false)
 
-    // المرجع الخاص بعنصر الطباعة المعزول
     const receiptRef = useRef(null)
     const handlePrint = useReactToPrint({
         contentRef: receiptRef,
@@ -52,28 +50,23 @@ export default function PosPage({ showToast }) {
     size: 80mm auto;
     margin: 0;
 }
-
 html, body {
     margin: 0 !important;
     padding: 0 !important;
     background: white !important;
 }
-
 body * {
     visibility: hidden;
 }
-
 .print-area, .print-area * {
     visibility: visible;
 }
-
 .print-area {
     position: absolute;
     left: 0;
     top: 0;
     width: 80mm !important;
 }
-
 .page-break {
     break-after: page;
     page-break-after: always;
@@ -86,9 +79,7 @@ body * {
             (selectedCat === 'all' || p.category_slug === selectedCat) &&
             (
                 !search ||
-                (p.name || '')
-                    .toLowerCase()
-                    .includes(search.toLowerCase()) ||
+                (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
                 (p.name_ar && p.name_ar.includes(search))
             )
         )
@@ -110,7 +101,6 @@ body * {
 
     return (
         <div className="pos-layout">
-            {/* ── Left — product browser ── */}
             <div className="pos-left">
                 <div className="pos-search-bar">
                     <div className="search-wrapper">
@@ -248,7 +238,6 @@ body * {
                 )}
             </div>
 
-            {/* ── Right — cart panel ── */}
             <div className="cart-panel">
                 <div className="cart-header">
                     <span className="cart-title">Current Order</span>
@@ -316,12 +305,13 @@ body * {
                         </div>
                     </div>
 
-                    <div className="pay-method-row">
+                    {/* خيارات الطرق الثلاث للدفع */}
+                    <div className="pay-method-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
                         <button
                             type='button' className={`pay-btn ${paymentMethod === 'cash' ? 'active' : ''}`}
                             onClick={() => setPaymentMethod('cash')}
                         >
-                            <Banknote size={17} />
+                            <Banknote size={15} />
                             <span>CASH</span>
                         </button>
 
@@ -329,10 +319,20 @@ body * {
                             type='button' className={`pay-btn ${paymentMethod === 'visa' ? 'active' : ''}`}
                             onClick={() => setPaymentMethod('visa')}
                         >
-                            <CreditCard size={17} />
+                            <CreditCard size={15} />
                             <span>VISA</span>
                         </button>
+
+                        <button
+                            type='button' className={`pay-btn ${paymentMethod === 'unpaid' ? 'active' : ''}`}
+                            onClick={() => setPaymentMethod('unpaid')}
+                            style={paymentMethod === 'unpaid' ? { borderColor: '#ef4444', color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)' } : {}}
+                        >
+                            <Clock size={15} />
+                            <span>UNPAID</span>
+                        </button>
                     </div>
+
                     {paymentMethod === 'cash' && (
                         <div>
                             <input
@@ -364,13 +364,16 @@ body * {
                 </div>
             </div>
 
-            {/* ── Success modal ── */}
+            {/* Success modal */}
             {successModal && lastOrder && (
                 <Modal onClose={() => setSuccessModal(false)}>
                     <div className="success-screen">
                         <div className="success-tick">✓</div>
-                        <h3>Payment Successful!</h3>
-                        <p style={{ marginTop: 4 }}>Order #{lastOrder.invoice_number || lastOrder.order_number || '1'} completed</p>
+                        <h3>Order Saved!</h3>
+                        <p style={{ marginTop: 4 }}>
+                          Order #{lastOrder.invoice_number || lastOrder.order_number || '1'} completed
+                          {lastOrder.payment_method === 'unpaid' && <span style={{ color: '#ef4444', fontWeight: 'bold', display: 'block', marginTop: '4px' }}>[UNPAID / غير مدفوع]</span>}
+                        </p>
                         {Number(lastOrder.change_amount) > 0 && (
                             <div className="change-highlight">
                                 <div className="change-label">Change to Return</div>
@@ -389,7 +392,7 @@ body * {
                 </Modal>
             )}
 
-            {/* ── Receipt preview modal ── */}
+            {/* Receipt preview modal */}
             {receiptModal && lastOrder && (
                 <Modal onClose={() => setReceiptModal(false)}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }} >
@@ -406,15 +409,12 @@ body * {
 
                     <div style={{ maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '4px' }}>
                         <div ref={receiptRef} className="print-area">
-                            {/* Slip 1: Cashier/Customer Receipt */}
                             <div>
                                 <ReceiptPreview order={lastOrder} settings={settings} />
                             </div>
 
-                            {/* Page break for printing */}
                             <div className="page-break" style={{ height: '20px' }} />
 
-                            {/* Slip 2: Kitchen Receipt */}
                             <div>
                                 <KitchenReceipt order={lastOrder} />
                             </div>

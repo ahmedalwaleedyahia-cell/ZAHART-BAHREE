@@ -12,7 +12,7 @@ import { ClipboardList, Printer, Search, Utensils } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 
 export default function OrdersPage({ showToast }) {
-  const { orders, loading, updateOrderStatus } = useOrders()
+  const { orders, loading, updateOrderStatus, updatePaymentMethod } = useOrders()
   const { isAdmin } = useAuth()
   const { settings } = useSettings()
   const [receiptOrder, setReceiptOrder] = useState(null)
@@ -63,13 +63,23 @@ body * {
     }
   }
 
+  async function handlePaymentChange(orderId, newMethod) {
+    const { error } = await updatePaymentMethod(orderId, newMethod)
+    if (error) {
+      showToast(error, 'error')
+    } else {
+      showToast(`Payment method updated to ${newMethod.toUpperCase()}`, 'success')
+    }
+  }
+
   const filteredOrders = useMemo(() => {
     if (!search.trim()) return orders
     const q = search.toLowerCase()
     return orders.filter(o => {
       const invNum = String(o.invoice_number || o.order_number || '')
       const cashier = (o.cashier_name || '').toLowerCase()
-      return invNum.toLowerCase().includes(q) || cashier.includes(q)
+      const method = (o.payment_method || '').toLowerCase()
+      return invNum.toLowerCase().includes(q) || cashier.includes(q) || method.includes(q)
     })
   }, [orders, search])
 
@@ -91,7 +101,7 @@ body * {
           <input
             className="search-input"
             type="text"
-            placeholder="Search orders..."
+            placeholder="Search orders, cashier, payment..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: '44px', paddingRight: search ? '40px' : '16px' }}
@@ -130,57 +140,75 @@ body * {
                     <th>Order #</th>
                     <th>Items</th>
                     <th>Cashier</th>
-                    <th>Payment</th>
+                    <th>Payment Method</th>
                     <th>Time</th>
                     <th>Total (AED)</th>
                     <th></th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredOrders.map(o => (
-                    <tr
-                      key={o.id}
-                      className={o.status === 'cancelled' ? 'row-cancelled' : ''}
-                    >
-                      <td>
-                        <span className="order-num">
-                          INV-{String(o.invoice_number || o.order_number).padStart(5, '0')}
-                        </span>
-                      </td>
-                      <td className="items-cell">
-                        {o.items?.slice(0, 2).map(i => `${i.quantity}× ${i.product_name}`).join(', ')}
-                        {(o.items?.length || 0) > 2 && ` +${o.items.length - 2}`}
-                      </td>
-                      <td style={{ fontSize: 12.5 }}>{o.cashier_name}</td>
-                      <td>
-                        <span className={`badge badge-${o.payment_method === 'cash' ? 'green' : 'blue'}`}>
-                          {o.payment_method}
-                        </span>
-                      </td>
-                      <td className="time-cell">{fmtDateTime(o.created_at)}</td>
-                      <td><strong>AED {fmtNum(o.total_amount)}</strong></td>
-                      <td className="action-cell">
-                        {/* Receipt button */}
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => setReceiptOrder(o)}
-                          title="View receipt"
-                        >
-                          <Printer size={13} strokeWidth={2} />
-                        </button>
-                        {/* Cancel — admin only, completed orders only */}
-                        {isAdmin && o.status === 'completed' && (
-                          <button
-                            className="btn btn-danger btn-sm"
-                            onClick={() => handleCancel(o.id)}
-                            title="Cancel order"
+                  {filteredOrders.map(o => {
+                    const method = (o.payment_method || 'cash').toLowerCase()
+                    return (
+                      <tr
+                        key={o.id}
+                        className={o.status === 'cancelled' ? 'row-cancelled' : ''}
+                      >
+                        <td>
+                          <span className="order-num">
+                            INV-{String(o.invoice_number || o.order_number).padStart(5, '0')}
+                          </span>
+                        </td>
+                        <td className="items-cell">
+                          {o.items?.slice(0, 2).map(i => `${i.quantity}× ${i.product_name}`).join(', ')}
+                          {(o.items?.length || 0) > 2 && ` +${o.items.length - 2}`}
+                        </td>
+                        <td style={{ fontSize: 12.5 }}>{o.cashier_name}</td>
+                        <td>
+                          {/* القائمة المنسدلة لتغيير طريقة الدفع فوراً */}
+                          <select
+                            value={method}
+                            onChange={(e) => handlePaymentChange(o.id, e.target.value)}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              border: '1px solid currentColor',
+                              cursor: 'pointer',
+                              outline: 'none',
+                              backgroundColor: method === 'cash' ? 'rgba(34, 197, 94, 0.15)' : method === 'unpaid' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                              color: method === 'cash' ? '#22c55e' : method === 'unpaid' ? '#ef4444' : '#3b82f6',
+                            }}
                           >
-                            ✕
+                            <option value="cash" style={{ background: '#1e1e1e', color: '#fff' }}>CASH</option>
+                            <option value="visa" style={{ background: '#1e1e1e', color: '#fff' }}>VISA</option>
+                            <option value="unpaid" style={{ background: '#1e1e1e', color: '#fff' }}>UNPAID</option>
+                          </select>
+                        </td>
+                        <td className="time-cell">{fmtDateTime(o.created_at)}</td>
+                        <td><strong>AED {fmtNum(o.total_amount)}</strong></td>
+                        <td className="action-cell">
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => setReceiptOrder(o)}
+                            title="View receipt"
+                          >
+                            <Printer size={13} strokeWidth={2} />
                           </button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                          {isAdmin && o.status === 'completed' && (
+                            <button
+                              className="btn btn-danger btn-sm"
+                              onClick={() => handleCancel(o.id)}
+                              title="Cancel order"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
@@ -209,15 +237,12 @@ body * {
 
           <div style={{ maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '4px' }}>
             <div ref={printContainerRef} className="print-area">
-              {/* Slip 1: Cashier/Customer Receipt */}
               <div>
                 <ReceiptPreview order={receiptOrder} settings={settings} />
               </div>
 
-              {/* Page break for printing */}
               <div className="page-break" style={{ height: '20px' }} />
 
-              {/* Slip 2: Kitchen Receipt */}
               <div>
                 <KitchenReceipt order={receiptOrder} />
               </div>
