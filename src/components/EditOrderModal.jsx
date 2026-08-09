@@ -132,26 +132,65 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
   const orderNumStr = String(order?.invoice_number || order?.order_number || order?.id || '').padStart(5, '0')
 
+  // Fixed Dark Mode Styling Scheme
+  const darkTheme = {
+    modalBg: '#1c1917',
+    cardBg: '#121110',
+    inputBg: '#262320',
+    textPrimary: '#f4f4f5',
+    textSecondary: '#a1a1aa',
+    border: 'rgba(197, 160, 89, 0.25)',
+    gold: '#c5a059'
+  }
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-box" onClick={e => e.stopPropagation()}>
+    <div 
+      onClick={onClose}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(6px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 99999,
+        padding: '16px'
+      }}
+    >
+      <div 
+        onClick={e => e.stopPropagation()}
+        style={{ 
+          maxWidth: '520px', 
+          width: '100%', 
+          padding: '24px', 
+          borderRadius: '16px',
+          backgroundColor: darkTheme.modalBg,
+          border: `1px solid ${darkTheme.border}`,
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
+          color: darkTheme.textPrimary
+        }}
+      >
         
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
-            <div className="modal-title" style={{ marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Edit Order <span className="badge badge-gold">INV-{orderNumStr}</span>
+            <div style={{ fontSize: '18px', fontWeight: '700', color: darkTheme.gold, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              Edit Order <span style={{ backgroundColor: 'rgba(197, 160, 89, 0.15)', color: darkTheme.gold, padding: '2px 8px', borderRadius: '6px', fontSize: '12px', border: `1px solid ${darkTheme.border}` }}>INV-{orderNumStr}</span>
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--txt3)' }}>
+            <div style={{ fontSize: '12px', color: darkTheme.textSecondary, marginTop: '4px' }}>
               Modify items, quantities, or add products
             </div>
           </div>
           <button 
             onClick={onClose}
-            className="btn-icon"
+            style={{ background: 'transparent', border: 'none', color: darkTheme.textSecondary, cursor: 'pointer', padding: '4px' }}
             aria-label="Close"
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
@@ -160,13 +199,13 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           maxHeight: '220px', 
           overflowY: 'auto', 
           marginBottom: '18px', 
-          backgroundColor: 'var(--surf)', 
-          borderRadius: 'var(--r-md)', 
-          border: '1px solid var(--bdr)',
+          backgroundColor: darkTheme.cardBg, 
+          borderRadius: '12px', 
+          border: `1px solid ${darkTheme.border}`,
           padding: '8px 12px' 
         }}>
           {items.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'var(--txt3)', padding: '24px 0', fontSize: '13px' }}>
+            <div style={{ textAlign: 'center', color: darkTheme.textSecondary, padding: '24px 0', fontSize: '13px' }}>
               No items in this order
             </div>
           ) : (
@@ -181,41 +220,39 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                     alignItems: 'center', 
                     justifyContent: 'space-between', 
                     padding: '10px 0', 
-                    borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr)'
+                    borderBottom: idx === items.length - 1 ? 'none' : '1px solid rgba(255, 255, 255, 0.08)'
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                    <div style={{ fontWeight: '600', fontSize: '13.5px', color: 'var(--txt)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontWeight: '600', fontSize: '13.5px', color: darkTheme.textPrimary, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.product_name}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--txt3)', marginTop: '2px' }}>
+                    <div style={{ fontSize: '11px', color: darkTheme.textSecondary, marginTop: '2px' }}>
                       AED {uPrice.toFixed(2)} each
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     {/* Quantity Controls */}
-                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'var(--surf2)', borderRadius: 'var(--r-sm)', padding: '2px', border: '1px solid var(--bdr)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: darkTheme.inputBg, borderRadius: '8px', padding: '2px', border: `1px solid ${darkTheme.border}` }}>
                       <button 
                         onClick={() => handleQtyChange(idx, -1)} 
-                        className="btn-icon btn-sm"
-                        style={{ border: 'none', width: '26px', height: '26px' }}
+                        style={{ background: 'transparent', border: 'none', color: darkTheme.gold, width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Minus size={12} />
                       </button>
-                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: 'var(--txt)' }}>
+                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: darkTheme.textPrimary }}>
                         {item.quantity}
                       </span>
                       <button 
                         onClick={() => handleQtyChange(idx, 1)} 
-                        className="btn-icon btn-sm"
-                        style={{ border: 'none', width: '26px', height: '26px' }}
+                        style={{ background: 'transparent', border: 'none', color: darkTheme.gold, width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Plus size={12} />
                       </button>
                     </div>
 
-                    <div style={{ width: '75px', textAlign: 'right', fontWeight: '700', fontSize: '13.5px', color: 'var(--txt)' }}>
+                    <div style={{ width: '75px', textAlign: 'right', fontWeight: '700', fontSize: '13.5px', color: darkTheme.textPrimary }}>
                       AED {itemTotal.toFixed(2)}
                     </div>
 
@@ -223,9 +260,8 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                     {!isCashier && (
                       <button 
                         onClick={() => handleRemoveItem(idx)} 
-                        className="btn-icon btn-icon-danger btn-sm"
+                        style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', color: '#ef4444', width: '30px', height: '30px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         title="Remove Item"
-                        style={{ width: '30px', height: '30px' }}
                       >
                         <Trash2 size={14} />
                       </button>
@@ -239,27 +275,26 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
         {/* Add Product Box */}
         <div style={{ 
-          backgroundColor: 'var(--surf)', 
+          backgroundColor: darkTheme.cardBg, 
           padding: '14px', 
-          borderRadius: 'var(--r-md)', 
-          border: '1px solid var(--bdr)',
+          borderRadius: '12px', 
+          border: `1px solid ${darkTheme.border}`,
           marginBottom: '20px' 
         }}>
-          <label className="form-label" style={{ color: 'var(--gold)', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <label style={{ color: darkTheme.gold, fontSize: '12px', fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase' }}>
             <PackagePlus size={14} /> Add Product
           </label>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <select 
               value={selectedProductId} 
               onChange={e => setSelectedProductId(e.target.value)} 
-              className="select"
-              style={{ flex: 1, fontSize: '13px' }}
+              style={{ flex: 1, fontSize: '13px', backgroundColor: darkTheme.inputBg, color: darkTheme.textPrimary, border: `1px solid ${darkTheme.border}`, borderRadius: '8px', padding: '9px 12px', outline: 'none' }}
             >
-              <option value="">Select product...</option>
+              <option value="" style={{ backgroundColor: darkTheme.modalBg, color: darkTheme.textPrimary }}>Select product...</option>
               {Object.keys(groupedProducts).map(catName => (
-                <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`}>
+                <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`} style={{ backgroundColor: darkTheme.modalBg, color: darkTheme.gold, fontWeight: '700' }}>
                   {groupedProducts[catName].map(p => (
-                    <option key={p.id} value={p.id}>
+                    <option key={p.id} value={p.id} style={{ backgroundColor: darkTheme.inputBg, color: darkTheme.textPrimary, fontWeight: 'normal' }}>
                       {p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}
                     </option>
                   ))}
@@ -271,12 +306,11 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
               min="1" 
               value={addQty} 
               onChange={e => setAddQty(e.target.value)} 
-              className="input"
-              style={{ width: '60px', textAlign: 'center', padding: '9px 4px' }} 
+              style={{ width: '60px', textAlign: 'center', padding: '9px 4px', backgroundColor: darkTheme.inputBg, color: darkTheme.textPrimary, border: `1px solid ${darkTheme.border}`, borderRadius: '8px', outline: 'none' }} 
             />
             <button 
               onClick={handleAddNewItem}
-              className="btn btn-gold btn-sm"
+              style={{ background: 'linear-gradient(135deg, #c5a059 0%, #a37f3f 100%)', color: '#000000', fontWeight: '800', border: 'none', borderRadius: '8px', padding: '9px 18px', cursor: 'pointer' }}
             >
               Add
             </button>
@@ -289,28 +323,28 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           justify: 'space-between', 
           alignItems: 'center', 
           paddingTop: '12px', 
-          borderTop: '1px solid var(--bdr)',
+          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
           marginBottom: '20px'
         }}>
-          <span style={{ fontSize: '13.5px', color: 'var(--txt2)', fontWeight: '500' }}>New Total Amount:</span>
-          <span className="val-gold" style={{ fontSize: '20px', fontWeight: '800' }}>
+          <span style={{ fontSize: '13.5px', color: darkTheme.textSecondary, fontWeight: '500' }}>New Total Amount:</span>
+          <span style={{ fontSize: '20px', fontWeight: '800', color: darkTheme.gold }}>
             AED {total.toFixed(2)}
           </span>
         </div>
 
         {/* Actions */}
-        <div className="modal-actions" style={{ justifyContent: 'flex-end', marginTop: 0 }}>
+        <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
           <button 
             onClick={onClose} 
             disabled={saving} 
-            className="btn btn-ghost"
+            style={{ backgroundColor: 'transparent', color: darkTheme.textSecondary, border: `1px solid ${darkTheme.border}`, padding: '9px 18px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
           >
             Cancel
           </button>
           <button 
             onClick={handleSaveChanges} 
             disabled={saving} 
-            className="btn btn-gold"
+            style={{ background: 'linear-gradient(135deg, #c5a059 0%, #a37f3f 100%)', color: '#000000', fontWeight: '800', border: 'none', padding: '9px 22px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
           >
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
