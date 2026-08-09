@@ -7,7 +7,8 @@ import { useState, useRef, useMemo } from 'react'
 import Modal from '../components/ui/Modal.jsx'
 import Empty from '../components/ui/Empty.jsx'
 import ReceiptPreview from '../components/ui/ReceiptPreview.jsx'
-import { ClipboardList, Printer, Search } from 'lucide-react'
+import KitchenReceipt from '../components/ui/KitchenReceipt.jsx'
+import { ClipboardList, Printer, Search, Utensils } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 
 export default function OrdersPage({ showToast }) {
@@ -17,10 +18,10 @@ export default function OrdersPage({ showToast }) {
   const [receiptOrder, setReceiptOrder] = useState(null)
   const [search, setSearch] = useState('')
 
-  const receiptRef = useRef(null)
+  const printContainerRef = useRef(null)
 
   const handlePrint = useReactToPrint({
-    contentRef: receiptRef,
+    contentRef: printContainerRef,
     documentTitle: `Receipt-${receiptOrder?.invoice_number || receiptOrder?.order_number || '1'}`,
     removeAfterPrint: true,
     pageStyle: `
@@ -36,20 +37,18 @@ html, body {
 body * {
     visibility: hidden;
 }
-#receipt, #receipt * {
+.print-area, .print-area * {
     visibility: visible;
 }
-#receipt {
+.print-area {
     position: absolute;
     left: 0;
     top: 0;
     width: 80mm !important;
-    max-width: 80mm !important;
-    padding: 3mm !important;
-    margin: 0 !important;
-    box-sizing: border-box !important;
-    background: white !important;
-    color: black !important;
+}
+.page-break {
+    break-after: page;
+    page-break-after: always;
 }
 `
   })
@@ -192,18 +191,38 @@ body * {
       {receiptOrder && (
         <Modal onClose={() => setReceiptOrder(null)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <div className="modal-title" style={{ marginBottom: 0 }}>
-              Receipt #{receiptOrder.order_number}
+            <div className="modal-title" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>Receipt #{receiptOrder.order_number}</span>
+              <span className="badge badge-gold" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Utensils size={12} /> Includes Kitchen Copy
+              </span>
             </div>
             <button
               className="btn btn-gold btn-sm"
               onClick={handlePrint}
+              style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
             >
               <Printer size={13} strokeWidth={2} />
-              Print
+              Print Both Slips
             </button>
           </div>
-          <ReceiptPreview ref={receiptRef} order={receiptOrder} settings={settings} />
+
+          <div style={{ maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '4px' }}>
+            <div ref={printContainerRef} className="print-area">
+              {/* Slip 1: Cashier/Customer Receipt */}
+              <div>
+                <ReceiptPreview order={receiptOrder} settings={settings} />
+              </div>
+
+              {/* Page break for printing */}
+              <div className="page-break" style={{ height: '20px' }} />
+
+              {/* Slip 2: Kitchen Receipt */}
+              <div>
+                <KitchenReceipt order={receiptOrder} />
+              </div>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
