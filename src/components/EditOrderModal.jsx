@@ -2,7 +2,15 @@
 import { useOrders } from '../context/OrdersContext.jsx'
 import { Trash2, Plus, Minus, PackagePlus, X } from 'lucide-react'
 
-// Helper to safely extract category name
+// Safe helper for Auth Context
+let useAuth
+try {
+  const authModule = await import('../context/AuthContext.jsx')
+  useAuth = authModule.useAuth
+} catch (e) {
+  // Fallback if auth context path differs
+}
+
 function getCategoryName(product) {
   if (!product) return 'Other'
   if (typeof product.category === 'string') return product.category
@@ -16,13 +24,29 @@ function getCategoryName(product) {
 
 export default function EditOrderModal({ order, products = [], onClose, showToast, onOrderUpdated }) {
   const { updateOrderItems } = useOrders()
+  
+  // Safe Auth Role Check
+  let userRole = ''
+  try {
+    if (typeof useAuth === 'function') {
+      const auth = useAuth()
+      userRole = auth?.user?.role || auth?.role || ''
+    }
+  } catch (e) {}
+
+  if (!userRole) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('user') || '{}')
+      userRole = stored?.role || localStorage.getItem('role') || localStorage.getItem('user_role') || ''
+    } catch(e) {}
+  }
+
+  const isCashier = String(userRole).toLowerCase() === 'cashier'
+
   const [items, setItems] = useState(order?.items || [])
   const [saving, setSaving] = useState(false)
-  
   const [selectedProductId, setSelectedProductId] = useState('')
   const [addQty, setAddQty] = useState(1)
-
-  // Detect Light/Dark Mode dynamically
   const [isDarkMode, setIsDarkMode] = useState(true)
 
   useEffect(() => {
@@ -36,7 +60,6 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
     return () => observer.disconnect()
   }, [])
 
-  // Group products by category safely
   const groupedProducts = useMemo(() => {
     const groups = {}
     products.forEach(p => {
@@ -132,7 +155,6 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
   const orderNumStr = String(order?.invoice_number || order?.order_number || order?.id || '').padStart(5, '0')
 
-  // Theme colors
   const theme = {
     modalBg: isDarkMode ? '#1c1917' : '#ffffff',
     cardBg: isDarkMode ? '#121110' : '#f8fafc',
@@ -140,8 +162,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
     textPrimary: isDarkMode ? '#f4f4f5' : '#0f172a',
     textSecondary: isDarkMode ? '#a1a1aa' : '#64748b',
     border: isDarkMode ? 'rgba(197, 160, 89, 0.25)' : 'rgba(197, 160, 89, 0.4)',
-    gold: '#c5a059',
-    goldHover: '#b38d46'
+    gold: '#c5a059'
   }
 
   return (
@@ -162,6 +183,61 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         padding: '16px'
       }}
     >
+      {/* Interactive Styles */}
+      <style>{`
+        .btn-gold-action {
+          background: linear-gradient(135deg, #c5a059 0%, #a37f3f 100%) !important;
+          color: #000000 !important;
+          font-weight: 800 !important;
+          transition: all 0.2s ease-in-out !important;
+          cursor: pointer !important;
+          border: none !important;
+        }
+        .btn-gold-action:hover {
+          filter: brightness(1.15) !important;
+          transform: translateY(-1px) !important;
+          box-shadow: 0 4px 14px rgba(197, 160, 89, 0.4) !important;
+        }
+        .btn-gold-action:active {
+          transform: translateY(1px) scale(0.97) !important;
+          filter: brightness(0.95) !important;
+        }
+        .btn-qty-control {
+          transition: all 0.15s ease-in-out !important;
+          cursor: pointer !important;
+        }
+        .btn-qty-control:hover {
+          background-color: rgba(197, 160, 89, 0.25) !important;
+          border-radius: 6px !important;
+        }
+        .btn-qty-control:active {
+          transform: scale(0.85) !important;
+        }
+        .btn-delete-item {
+          transition: all 0.2s ease-in-out !important;
+          cursor: pointer !important;
+        }
+        .btn-delete-item:hover {
+          background-color: #ef4444 !important;
+          color: #ffffff !important;
+          transform: scale(1.05) !important;
+        }
+        .btn-delete-item:active {
+          transform: scale(0.9) !important;
+        }
+        .btn-cancel-action {
+          transition: all 0.2s ease-in-out !important;
+          cursor: pointer !important;
+        }
+        .btn-cancel-action:hover {
+          background-color: rgba(255, 255, 255, 0.08) !important;
+          color: #ffffff !important;
+        }
+        .btn-cancel-action:active {
+          transform: scale(0.95) !important;
+        }
+      `}</style>
+
       <div 
         onClick={e => e.stopPropagation()}
         style={{ 
@@ -172,8 +248,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           backgroundColor: theme.modalBg,
           border: `1px solid ${theme.border}`,
           boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
-          color: theme.textPrimary,
-          transition: 'all 0.2s ease-in-out'
+          color: theme.textPrimary
         }}
       >
         {/* Header */}
@@ -188,8 +263,8 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           </div>
           <button 
             onClick={onClose}
-            className="hover:opacity-75 transition-opacity active:scale-95"
-            style={{ background: 'transparent', border: 'none', color: theme.textSecondary, cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            className="btn-cancel-action"
+            style={{ background: 'transparent', border: 'none', color: theme.textSecondary, padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
             <X size={20} />
           </button>
@@ -237,8 +312,8 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                     <div style={{ display: 'flex', alignItems: 'center', backgroundColor: theme.inputBg, borderRadius: '8px', padding: '2px', border: `1px solid ${theme.border}` }}>
                       <button 
                         onClick={() => handleQtyChange(idx, -1)} 
-                        className="hover:opacity-80 active:scale-90 transition-all"
-                        style={{ background: 'transparent', border: 'none', color: theme.gold, cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center' }}
+                        className="btn-qty-control"
+                        style={{ background: 'transparent', border: 'none', color: theme.gold, padding: '4px 8px', display: 'flex', alignItems: 'center' }}
                       >
                         <Minus size={13} />
                       </button>
@@ -247,8 +322,8 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                       </span>
                       <button 
                         onClick={() => handleQtyChange(idx, 1)} 
-                        className="hover:opacity-80 active:scale-90 transition-all"
-                        style={{ background: 'transparent', border: 'none', color: theme.gold, cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center' }}
+                        className="btn-qty-control"
+                        style={{ background: 'transparent', border: 'none', color: theme.gold, padding: '4px 8px', display: 'flex', alignItems: 'center' }}
                       >
                         <Plus size={13} />
                       </button>
@@ -258,14 +333,17 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                       AED {itemTotal.toFixed(2)}
                     </div>
 
-                    <button 
-                      onClick={() => handleRemoveItem(idx)} 
-                      className="hover:bg-red-500 hover:text-white transition-all active:scale-90"
-                      style={{ background: 'rgba(239, 68, 68, 0.12)', border: 'none', color: '#ef4444', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
-                      title="Remove Item"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    {/* Hide Delete Option ONLY for Cashier */}
+                    {!isCashier && (
+                      <button 
+                        onClick={() => handleRemoveItem(idx)} 
+                        className="btn-delete-item"
+                        style={{ background: 'rgba(239, 68, 68, 0.12)', border: 'none', color: '#ef4444', padding: '6px', borderRadius: '6px', display: 'flex', alignItems: 'center' }}
+                        title="Remove Item"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </div>
                 </div>
               )
@@ -330,17 +408,11 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
             />
             <button 
               onClick={handleAddNewItem}
-              className="hover:opacity-90 active:scale-95 transition-all"
+              className="btn-gold-action"
               style={{ 
-                background: 'linear-gradient(135deg, #c5a059 0%, #a37f3f 100%)', 
-                color: '#ffffff', 
-                border: 'none', 
                 padding: '9px 18px', 
                 borderRadius: '8px', 
-                fontWeight: '700', 
-                fontSize: '13px', 
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(197, 160, 89, 0.3)'
+                fontSize: '13px'
               }}
             >
               Add
@@ -368,25 +440,19 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           <button 
             onClick={onClose} 
             disabled={saving} 
-            className="hover:bg-slate-500/10 active:scale-95 transition-all"
-            style={{ backgroundColor: 'transparent', color: theme.textSecondary, border: `1px solid ${theme.border}`, padding: '9px 18px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
+            className="btn-cancel-action"
+            style={{ backgroundColor: 'transparent', color: theme.textSecondary, border: `1px solid ${theme.border}`, padding: '9px 18px', borderRadius: '8px', fontSize: '13px' }}
           >
             Cancel
           </button>
           <button 
             onClick={handleSaveChanges} 
             disabled={saving} 
-            className="hover:opacity-90 active:scale-95 transition-all"
+            className="btn-gold-action"
             style={{ 
-              background: 'linear-gradient(135deg, #c5a059 0%, #a37f3f 100%)', 
-              color: '#ffffff', 
-              border: 'none', 
               padding: '9px 22px', 
               borderRadius: '8px', 
-              fontWeight: '700', 
-              fontSize: '13px', 
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(197, 160, 89, 0.3)'
+              fontSize: '13px'
             }}
           >
             {saving ? 'Saving...' : 'Save Changes'}
