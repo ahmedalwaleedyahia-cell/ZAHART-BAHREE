@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+﻿import { useState, useEffect, useCallback, useMemo } from 'react'
 import { DollarSign, ShoppingBag, Users, Layers, ArrowRight } from 'lucide-react'
+import { useOrders } from '../context/OrdersContext.jsx'
 
 import {
   fetchFinanceSummary,
@@ -15,10 +16,6 @@ import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
 import '../styles/finance.css'
 import '../styles/unified-cards.css'
 
-// ======================================================
-// Wrapper
-// ======================================================
-
 export default function FinancePage({ showToast }) {
   return (
     <FinanceProvider>
@@ -27,23 +24,14 @@ export default function FinancePage({ showToast }) {
   )
 }
 
-// ======================================================
-// Main Content
-// ======================================================
-
 function FinancePageContent({ showToast }) {
+  const { orders } = useOrders()
   const [activeTab, setActiveTab] = useState('overview')
   const [summary, setSummary] = useState(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
 
-  // --------------------------
-  // Filter State (Matched with DashboardPage)
-  // --------------------------
   const [filter, setFilter] = useState({ dateFrom: null, dateTo: null, preset: 'all' })
 
-  // --------------------------
-  // Load Summary
-  // --------------------------
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true)
 
@@ -52,27 +40,52 @@ function FinancePageContent({ showToast }) {
       const res = await fetchFinanceSummary(options)
       const data = res?.data || res || {}
 
+      let calculatedRevenue = 0
+      if (orders && orders.length > 0) {
+        calculatedRevenue = orders.reduce((sum, o) => {
+          if (o.status === 'cancelled') return sum
+          const created = new Date(o.created_at)
+
+          if (filter.dateFrom) {
+            const start = new Date(filter.dateFrom)
+            start.setHours(0, 0, 0, 0)
+            if (created < start) return sum
+          }
+          if (filter.dateTo) {
+            const end = new Date(filter.dateTo)
+            end.setHours(23, 59, 59, 999)
+            if (created > end) return sum
+          }
+          return sum + Number(o.total_amount || 0)
+        }, 0)
+      } else {
+        calculatedRevenue = Number(data.total_revenue ?? data.totalRevenue ?? 0)
+      }
+
+      const totalSalaries = Number(data.total_salaries ?? data.totalSalaries ?? 0)
+      const totalExpenses = Number(data.total_expenses ?? data.totalExpenses ?? 0)
+      const netProfit = calculatedRevenue - totalSalaries - totalExpenses
+
       if (!res?.error) {
         setSummary({
-          total_revenue: Number(data.total_revenue ?? data.totalRevenue ?? 0),
-          total_salaries: Number(data.total_salaries ?? data.totalSalaries ?? 0),
+          total_revenue: calculatedRevenue,
+          total_salaries: totalSalaries,
           salaries_paid: Number(data.salaries_paid ?? data.salariesPaid ?? 0),
-          total_expenses: Number(data.total_expenses ?? data.totalExpenses ?? 0),
-          net_profit: Number(data.net_profit ?? data.netProfit ?? 0),
+          total_expenses: totalExpenses,
+          net_profit: netProfit,
         })
       } else {
         setSummary({
-          total_revenue: 0,
+          total_revenue: calculatedRevenue,
           total_salaries: 0,
           salaries_paid: 0,
           total_expenses: 0,
-          net_profit: 0,
+          net_profit: calculatedRevenue,
         })
       }
 
     } catch (err) {
       console.error('Finance Summary Error:', err)
-
       setSummary({
         total_revenue: 0,
         total_salaries: 0,
@@ -83,15 +96,12 @@ function FinancePageContent({ showToast }) {
     } finally {
       setSummaryLoading(false)
     }
-  }, [filter.dateFrom, filter.dateTo])
+  }, [filter.dateFrom, filter.dateTo, orders])
 
   useEffect(() => {
     loadSummary()
   }, [loadSummary])
 
-  // --------------------------
-  // Cards Mapping
-  // --------------------------
   const mappedFinanceCards = useMemo(() => {
     const s = summary || {}
 
@@ -136,23 +146,15 @@ function FinancePageContent({ showToast }) {
     ]
   }, [summary, filter.preset])
 
-  // --------------------------
-  // Tabs
-  // --------------------------
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <Layers size={16} strokeWidth={2} /> },
     { id: 'salaries', label: 'Salaries', icon: <Users size={16} strokeWidth={2} /> },
     { id: 'expenses', label: 'Expenses', icon: <ShoppingBag size={16} strokeWidth={2} /> },
   ]
 
-  // ======================================================
-  // UI
-  // ======================================================
-
   return (
     <div className="scroll-view finance-page">
 
-      {/* Header */}
       <div className="page-header">
         <div>
           <div className="page-title">Finance Dashboard</div>
@@ -162,16 +164,13 @@ function FinancePageContent({ showToast }) {
         </div>
       </div>
 
-      {/* Dashboard Filter Component */}
       <DashboardFilter onFilterChange={(f) => setFilter(f)} />
 
-      {/* Unified Cards */}
       <UnifiedStatCards
         cards={mappedFinanceCards}
         loading={summaryLoading}
       />
 
-      {/* Tabs */}
       <div className="finance-tab-bar">
         {tabs.map(t => (
           <button
@@ -184,7 +183,6 @@ function FinancePageContent({ showToast }) {
         ))}
       </div>
 
-      {/* Overview */}
       {activeTab === 'overview' && (
         <div>
 
@@ -299,7 +297,6 @@ function FinancePageContent({ showToast }) {
         </div>
       )}
 
-      {/* Tabs Sections */}
       {activeTab === 'salaries' && (
         <SalariesSection showToast={showToast} onSummaryRefresh={loadSummary} filter={filter} />
       )}

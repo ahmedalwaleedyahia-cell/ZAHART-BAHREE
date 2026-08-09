@@ -1,4 +1,4 @@
-import { useOrders } from '../context/OrdersContext.jsx'
+﻿import { useOrders } from '../context/OrdersContext.jsx'
 import { useProducts } from '../context/ProductsContext.jsx'
 import { useState, useEffect, useMemo } from 'react'
 import { fmtNum, fmtDateTime } from '../utils/format.js'
@@ -32,12 +32,6 @@ import {
 import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
 import '../styles/finance.css'
 import '../styles/unified-cards.css'
-
-const CAT_COLORS = {
-  food: '#C9A96E',
-  drinks: '#3B82F6',
-  desserts: '#22C55E',
-}
 
 async function safeCall(fn, ...args) {
   if (typeof fn !== 'function') {
@@ -99,20 +93,49 @@ export default function DashboardPage() {
     return () => {
       isActive = false
     }
-  }, [orders.length, filter.dateFrom, filter.dateTo])
+  }, [orders?.length, filter.dateFrom, filter.dateTo])
+
+  const filteredOrders = useMemo(() => {
+    if (!orders) return []
+    return orders.filter(o => {
+      if (o.status === 'cancelled') return false
+      if (!filter.dateFrom && !filter.dateTo) return true
+
+      const created = new Date(o.created_at)
+      if (filter.dateFrom) {
+        const start = new Date(filter.dateFrom)
+        start.setHours(0, 0, 0, 0)
+        if (created < start) return false
+      }
+      if (filter.dateTo) {
+        const end = new Date(filter.dateTo)
+        end.setHours(23, 59, 59, 999)
+        if (created > end) return false
+      }
+      return true
+    })
+  }, [orders, filter.dateFrom, filter.dateTo])
 
   const summary = useMemo(() => {
-    const dataSource = filter.dateFrom && filter.dateTo ? dynamicSummary : contextSummary
+    if (filter.preset !== 'all' && filteredOrders.length >= 0) {
+      const revenue = filteredOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
+      const count = filteredOrders.length
+      const vat = filteredOrders.reduce((sum, o) => sum + Number(o.vat_amount || 0), 0)
+      const avg = count > 0 ? revenue / count : 0
+      return { revenue, orders: count, avg, vat }
+    }
+
+    const dataSource = dynamicSummary || contextSummary
     return {
       revenue: Number(dataSource?.total_revenue || 0),
       orders: Number(dataSource?.order_count || 0),
       avg: Number(dataSource?.avg_order_value || 0),
       vat: Number(dataSource?.total_vat || 0),
     }
-  }, [contextSummary, dynamicSummary, filter.dateFrom, filter.dateTo])
+  }, [contextSummary, dynamicSummary, filteredOrders, filter.preset])
 
-  // Realtime Computed Inventory Alert list filter logic
   const alertProducts = useMemo(() => {
+    if (!products) return []
     return products.filter(p => {
       if (!p.inventory_enabled) return false
       if (p.category_slug === 'drinks') {
@@ -172,7 +195,6 @@ export default function DashboardPage() {
 
       <UnifiedStatCards cards={statCardsConfiguration} loading={globalLoading || chartsLoading} />
 
-      {/* ⚠️ INVENTORY ALERTS WIDGET CARD */}
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
           <span className="card-title" style={{ color: 'var(--amber)' }}>
