@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+﻿import { useState, useEffect, useCallback, useRef } from 'react'
 import { useProducts } from '../context/ProductsContext.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
@@ -383,6 +383,7 @@ export default function ProductsPage({ showToast }) {
                         <select className="select" value={form.stock_unit} onChange={e => setForm(f => ({ ...f, stock_unit: e.target.value }))} style={{ width: '100%' }}>
                           <option value="gram">Gram</option>
                           <option value="kilogram">Kilogram</option>
+                          <option value="piece">Piece</option>
                         </select>
                       </div>
                       <div className="form-group">
