@@ -97,63 +97,66 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
 
   return (
     <div 
-      className="modal-overlay" 
       onClick={onClose}
       style={{
         position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        backdropFilter: 'blur(4px)',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0, 0, 0, 0.82)',
+        backdropFilter: 'blur(6px)',
         display: 'flex',
         alignItems: 'center',
-        justify: 'center',
-        zIndex: 1000
+        justifyContent: 'center',
+        zIndex: 99999,
+        padding: '16px'
       }}
     >
       <div 
         onClick={e => e.stopPropagation()}
         style={{ 
           maxWidth: '520px', 
-          width: '92%', 
+          width: '100%', 
           padding: '24px', 
           borderRadius: '16px',
-          background: 'var(--surf1, #1e1e1e)',
-          border: '1px solid var(--border, rgba(255,255,255,0.12))',
-          boxShadow: '0 20px 40px rgba(0,0,0,0.6)',
-          color: 'var(--txt, #fff)'
+          backgroundColor: '#18181b',
+          border: '1px solid #27272a',
+          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
+          color: '#f4f4f5',
+          fontFamily: 'inherit'
         }}
       >
-        {/* Modal Header */}
+        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: '700', color: 'var(--gold, #eab308)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Edit Order <span className="badge badge-gold" style={{ fontSize: '12px' }}>INV-{orderNumStr}</span>
+            <div style={{ fontSize: '18px', fontWeight: '700', color: '#eab308', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              Edit Order <span style={{ backgroundColor: 'rgba(234, 179, 8, 0.15)', color: '#eab308', padding: '2px 8px', borderRadius: '6px', fontSize: '12px', border: '1px solid rgba(234, 179, 8, 0.3)' }}>INV-{orderNumStr}</span>
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--txt3, #a1a1aa)', marginTop: '2px' }}>
-              Modify items, update quantities, or add new items
+            <div style={{ fontSize: '12px', color: '#a1a1aa', marginTop: '4px' }}>
+              Modify items, quantities, or add products
             </div>
           </div>
           <button 
-            className="btn btn-ghost btn-sm" 
             onClick={onClose}
-            style={{ borderRadius: '50%', width: '32px', height: '32px', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer', padding: '6px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
 
-        {/* Existing Items List */}
+        {/* Existing Items */}
         <div style={{ 
           maxHeight: '220px', 
           overflowY: 'auto', 
           marginBottom: '18px', 
-          background: 'var(--surf2, #141414)', 
+          backgroundColor: '#09090b', 
           borderRadius: '12px', 
-          border: '1px solid var(--border, rgba(255,255,255,0.08))',
+          border: '1px solid #27272a',
           padding: '8px 12px' 
         }}>
           {items.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'var(--txt3, #a1a1aa)', padding: '24px 0', fontSize: '13px' }}>
+            <div style={{ textAlign: 'center', color: '#71717a', padding: '24px 0', fontSize: '13px' }}>
               No items in this order
             </div>
           ) : (
@@ -167,48 +170,45 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
                     display: 'flex', 
                     alignItems: 'center', 
                     justify: 'space-between', 
-                    padding: '10px 4px', 
-                    borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--border, rgba(255,255,255,0.06))' 
+                    padding: '10px 0', 
+                    borderBottom: idx === items.length - 1 ? 'none' : '1px solid #18181b' 
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                    <div style={{ fontWeight: '600', fontSize: '13.5px', color: '#fff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontWeight: '600', fontSize: '13.5px', color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.product_name}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--txt3, #a1a1aa)' }}>
+                    <div style={{ fontSize: '11px', color: '#a1a1aa', marginTop: '2px' }}>
                       AED {uPrice.toFixed(2)} each
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', background: 'var(--surf3, #2a2a2a)', borderRadius: '8px', padding: '2px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', backgroundColor: '#27272a', borderRadius: '8px', padding: '2px' }}>
                       <button 
-                        className="btn btn-ghost btn-sm" 
                         onClick={() => handleQtyChange(idx, -1)} 
-                        style={{ padding: '2px 6px', height: '26px', width: '26px', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center' }}
                       >
-                        <Minus size={12} />
+                        <Minus size={13} />
                       </button>
-                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '700', fontSize: '13px' }}>
+                      <span style={{ minWidth: '22px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: '#fff' }}>
                         {item.quantity}
                       </span>
                       <button 
-                        className="btn btn-ghost btn-sm" 
                         onClick={() => handleQtyChange(idx, 1)} 
-                        style={{ padding: '2px 6px', height: '26px', width: '26px', minWidth: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ background: 'transparent', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center' }}
                       >
-                        <Plus size={12} />
+                        <Plus size={13} />
                       </button>
                     </div>
 
-                    <div style={{ width: '70px', textAlign: 'right', fontWeight: '700', fontSize: '13.5px', color: '#fff' }}>
+                    <div style={{ width: '70px', textAlign: 'right', fontWeight: '700', fontSize: '13.5px', color: '#ffffff' }}>
                       AED {itemTotal.toFixed(2)}
                     </div>
 
                     <button 
-                      className="btn btn-ghost btn-sm" 
                       onClick={() => handleRemoveItem(idx)} 
-                      style={{ color: '#ef4444', padding: '4px', height: '28px', width: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      style={{ background: 'rgba(239, 68, 68, 0.1)', border: 'none', color: '#ef4444', padding: '6px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
                       title="Remove Item"
                     >
                       <Trash2 size={14} />
@@ -220,15 +220,15 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
           )}
         </div>
 
-        {/* Add New Item Box */}
+        {/* Add Product Box */}
         <div style={{ 
-          background: 'var(--surf2, #141414)', 
+          backgroundColor: '#09090b', 
           padding: '14px', 
           borderRadius: '12px', 
-          border: '1px solid var(--border, rgba(255,255,255,0.08))',
+          border: '1px solid #27272a',
           marginBottom: '20px' 
         }}>
-          <div style={{ fontWeight: '600', fontSize: '12px', color: 'var(--gold, #eab308)', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          <div style={{ fontWeight: '600', fontSize: '12px', color: '#eab308', marginBottom: '10px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             <PackagePlus size={14} /> Add Product
           </div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -237,19 +237,19 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
               onChange={e => setSelectedProductId(e.target.value)} 
               style={{ 
                 flex: 1, 
-                padding: '8px 12px', 
+                padding: '9px 12px', 
                 borderRadius: '8px', 
-                background: 'var(--surf3, #2a2a2a)', 
-                color: '#fff', 
-                border: '1px solid var(--border, rgba(255,255,255,0.12))',
+                backgroundColor: '#18181b', 
+                color: '#ffffff', 
+                border: '1px solid #3f3f46',
                 fontSize: '13px',
                 outline: 'none',
                 cursor: 'pointer'
               }}
             >
-              <option value="" style={{ background: '#1e1e1e', color: '#fff' }}>Select product...</option>
+              <option value="" style={{ backgroundColor: '#18181b', color: '#fff' }}>Select product...</option>
               {products.map(p => (
-                <option key={p.id} value={p.id} style={{ background: '#1e1e1e', color: '#fff' }}>
+                <option key={p.id} value={p.id} style={{ backgroundColor: '#18181b', color: '#fff' }}>
                   {p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}
                 </option>
               ))}
@@ -262,19 +262,18 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
               style={{ 
                 width: '55px', 
                 textAlign: 'center', 
-                padding: '8px', 
+                padding: '9px 4px', 
                 borderRadius: '8px', 
-                background: 'var(--surf3, #2a2a2a)', 
-                color: '#fff', 
-                border: '1px solid var(--border, rgba(255,255,255,0.12))',
+                backgroundColor: '#18181b', 
+                color: '#ffffff', 
+                border: '1px solid #3f3f46',
                 fontSize: '13px',
                 outline: 'none'
               }} 
             />
             <button 
-              className="btn btn-gold btn-sm" 
               onClick={handleAddNewItem}
-              style={{ padding: '8px 14px', borderRadius: '8px', fontWeight: '600' }}
+              style={{ backgroundColor: '#eab308', color: '#000', border: 'none', padding: '9px 16px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
             >
               Add
             </button>
@@ -287,21 +286,29 @@ export default function EditOrderModal({ order, products, onClose, showToast, on
           justify: 'space-between', 
           alignItems: 'center', 
           paddingTop: '12px', 
-          borderTop: '1px solid var(--border, rgba(255,255,255,0.1))',
+          borderTop: '1px solid #27272a',
           marginBottom: '20px'
         }}>
-          <span style={{ fontSize: '13.5px', color: 'var(--txt2, #a1a1aa)', fontWeight: '500' }}>New Total Amount:</span>
-          <span style={{ fontSize: '20px', fontWeight: '800', color: 'var(--gold, #eab308)' }}>
+          <span style={{ fontSize: '13.5px', color: '#a1a1aa', fontWeight: '500' }}>New Total Amount:</span>
+          <span style={{ fontSize: '20px', fontWeight: '800', color: '#eab308' }}>
             AED {total.toFixed(2)}
           </span>
         </div>
 
-        {/* Footer Actions */}
+        {/* Actions */}
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <button className="btn btn-ghost" onClick={onClose} disabled={saving} style={{ padding: '9px 18px', borderRadius: '8px' }}>
+          <button 
+            onClick={onClose} 
+            disabled={saving} 
+            style={{ backgroundColor: 'transparent', color: '#a1a1aa', border: '1px solid #3f3f46', padding: '9px 18px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
+          >
             Cancel
           </button>
-          <button className="btn btn-gold" onClick={handleSaveChanges} disabled={saving} style={{ padding: '9px 22px', borderRadius: '8px', fontWeight: '700' }}>
+          <button 
+            onClick={handleSaveChanges} 
+            disabled={saving} 
+            style={{ backgroundColor: '#eab308', color: '#000000', border: 'none', padding: '9px 22px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+          >
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
