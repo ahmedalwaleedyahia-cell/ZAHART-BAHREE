@@ -1,6 +1,8 @@
 ﻿import { useOrders } from '../context/OrdersContext.jsx'
 import { useAuth } from '../context/AuthContext.jsx'
 import { useSettings } from '../context/SettingsContext.jsx'
+import { useProducts } from '../context/ProductsContext.jsx'
+import EditOrderModal from '../components/EditOrderModal.jsx'
 import Skeleton from '../components/ui/Skeleton.jsx'
 import { fmtNum, fmtDateTime } from '../utils/format.js'
 import { useState, useRef, useMemo } from 'react'
@@ -8,14 +10,17 @@ import Modal from '../components/ui/Modal.jsx'
 import Empty from '../components/ui/Empty.jsx'
 import ReceiptPreview from '../components/ui/ReceiptPreview.jsx'
 import KitchenReceipt from '../components/ui/KitchenReceipt.jsx'
-import { ClipboardList, Printer, Search, Utensils } from 'lucide-react'
+import { ClipboardList, Printer, Search, Utensils, Pencil } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 
 export default function OrdersPage({ showToast }) {
-  const { orders, loading, updateOrderStatus, updatePaymentMethod } = useOrders()
+  const { orders, loading, updateOrderStatus, updatePaymentMethod, fetchOrders } = useOrders()
+  const { products } = useProducts()
   const { isAdmin } = useAuth()
   const { settings } = useSettings()
+  
   const [receiptOrder, setReceiptOrder] = useState(null)
+  const [editingOrder, setEditingOrder] = useState(null)
   const [search, setSearch] = useState('')
 
   const printContainerRef = useRef(null)
@@ -165,7 +170,6 @@ body * {
                         </td>
                         <td style={{ fontSize: 12.5 }}>{o.cashier_name}</td>
                         <td>
-                          {/* القائمة المنسدلة لتغيير طريقة الدفع فوراً */}
                           <select
                             value={method}
                             onChange={(e) => handlePaymentChange(o.id, e.target.value)}
@@ -196,6 +200,17 @@ body * {
                           >
                             <Printer size={13} strokeWidth={2} />
                           </button>
+                          
+                          {isAdmin && o.status !== 'cancelled' && (
+                            <button
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setEditingOrder(o)}
+                              title="Edit order items"
+                            >
+                              <Pencil size={13} strokeWidth={2} />
+                            </button>
+                          )}
+
                           {isAdmin && o.status === 'completed' && (
                             <button
                               className="btn btn-danger btn-sm"
@@ -249,6 +264,23 @@ body * {
             </div>
           </div>
         </Modal>
+      )}
+
+      {/* Edit Order Modal */}
+      {editingOrder && (
+        <EditOrderModal
+          order={editingOrder}
+          products={products}
+          onClose={() => setEditingOrder(null)}
+          showToast={showToast}
+          onOrderUpdated={() => {
+            if (typeof fetchOrders === 'function') {
+              fetchOrders()
+            } else {
+              window.location.reload()
+            }
+          }}
+        />
       )}
     </div>
   )
