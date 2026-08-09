@@ -131,92 +131,103 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
   const orderNumStr = String(order?.invoice_number || order?.order_number || order?.id || '').padStart(5, '0')
 
   return (
-    <div 
-      onClick={onClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.82)',
-        backdropFilter: 'blur(8px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 99999,
-        padding: '16px'
-      }}
-    >
-      {/* Strict CSS Override rules to kill global white background */}
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 99999 }}>
+      {/* Styles adapted dynamically to system Light & Dark mode variables */}
       <style>{`
-        .force-dark-modal {
-          background-color: #1c1917 !important;
-          color: #f4f4f5 !important;
-          border: 1px solid rgba(197, 160, 89, 0.35) !important;
-          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7) !important;
+        .adaptive-modal-box {
+          background-color: var(--modal-bg, var(--surf, #1e1c1a)) !important;
+          color: var(--txt, #ffffff) !important;
+          border: 1px solid var(--bdr, rgba(197, 160, 89, 0.3)) !important;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5) !important;
+          border-radius: 16px !important;
+          max-width: 520px;
+          width: 100%;
+          padding: 24px;
         }
-        .force-dark-card {
-          background-color: #121110 !important;
-          border: 1px solid rgba(255, 255, 255, 0.08) !important;
+
+        .adaptive-card {
+          background-color: var(--surf2, var(--card-bg, rgba(255, 255, 255, 0.04))) !important;
+          border: 1px solid var(--bdr, rgba(255, 255, 255, 0.1)) !important;
+          border-radius: 12px !important;
         }
-        .force-dark-input {
-          background-color: #262320 !important;
-          color: #f4f4f5 !important;
-          border: 1px solid rgba(197, 160, 89, 0.3) !important;
+
+        .adaptive-input {
+          background-color: var(--surf3, var(--input-bg, rgba(255, 255, 255, 0.06))) !important;
+          color: var(--txt, #ffffff) !important;
+          border: 1px solid var(--bdr, rgba(197, 160, 89, 0.3)) !important;
         }
-        .force-dark-input option {
-          background-color: #1c1917 !important;
-          color: #f4f4f5 !important;
+
+        .adaptive-input option {
+          background-color: var(--surf, #1e1c1a) !important;
+          color: var(--txt, #ffffff) !important;
         }
-        .force-dark-gold-btn {
-          background: linear-gradient(135deg, #c5a059 0%, #a37f3f 100%) !important;
+
+        /* Fix for Cancel button text disappearing on click/active/hover */
+        .btn-cancel-custom {
+          background: transparent !important;
+          border: 1px solid var(--bdr, rgba(255, 255, 255, 0.2)) !important;
+          color: var(--txt, #ffffff) !important;
+          padding: 10px 24px !important;
+          border-radius: 8px !important;
+          font-weight: 600 !important;
+          font-size: 13px !important;
+          cursor: pointer !important;
+          transition: all 0.15s ease !important;
+        }
+
+        .btn-cancel-custom:hover, 
+        .btn-cancel-custom:active, 
+        .btn-cancel-custom:focus {
+          background: var(--surf2, rgba(255, 255, 255, 0.1)) !important;
+          color: var(--txt, #ffffff) !important;
+          border-color: var(--txt2, rgba(255, 255, 255, 0.4)) !important;
+        }
+
+        .btn-gold-custom {
+          background: var(--gold, linear-gradient(135deg, #c5a059 0%, #a37f3f 100%)) !important;
           color: #000000 !important;
           font-weight: 800 !important;
           border: none !important;
+          padding: 10px 24px !important;
+          border-radius: 8px !important;
+          font-size: 13px !important;
+          cursor: pointer !important;
         }
       `}</style>
 
-      <div 
-        onClick={e => e.stopPropagation()}
-        className="force-dark-modal"
-        style={{ 
-          maxWidth: '520px', 
-          width: '100%', 
-          padding: '24px', 
-          borderRadius: '16px'
-        }}
-      >
+      <div className="adaptive-modal-box" onClick={e => e.stopPropagation()}>
         
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: '700', color: '#c5a059', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              Edit Order <span style={{ backgroundColor: 'rgba(197, 160, 89, 0.15)', color: '#c5a059', padding: '2px 8px', borderRadius: '6px', fontSize: '12px', border: '1px solid rgba(197, 160, 89, 0.3)' }}>INV-{orderNumStr}</span>
+            <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '0.5px' }}>
+              EDIT ORDER <span style={{ backgroundColor: 'rgba(197, 160, 89, 0.15)', color: 'var(--gold, #c5a059)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid var(--bdr, rgba(197, 160, 89, 0.3))' }}>INV-{orderNumStr}</span>
             </div>
-            <div style={{ fontSize: '12px', color: '#a1a1aa', marginTop: '4px' }}>
+            <div style={{ fontSize: '12px', color: 'var(--txt2, #a1a1aa)', marginTop: '4px' }}>
               Modify items, quantities, or add products
             </div>
           </div>
           <button 
             onClick={onClose}
-            style={{ background: 'transparent', border: 'none', color: '#a1a1aa', cursor: 'pointer', padding: '4px' }}
+            style={{ background: 'var(--surf2, rgba(255, 255, 255, 0.08))', border: 'none', color: 'var(--txt2, #a1a1aa)', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             aria-label="Close"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Existing Items List */}
         <div 
-          className="force-dark-card"
+          className="adaptive-card"
           style={{ 
             maxHeight: '220px', 
             overflowY: 'auto', 
             marginBottom: '18px', 
-            borderRadius: '12px', 
             padding: '8px 12px' 
           }}
         >
           {items.length === 0 ? (
-            <div style={{ textAlign: 'center', color: '#a1a1aa', padding: '24px 0', fontSize: '13px' }}>
+            <div style={{ textAlign: 'center', color: 'var(--txt3, #a1a1aa)', padding: '24px 0', fontSize: '13px' }}>
               No items in this order
             </div>
           ) : (
@@ -231,39 +242,39 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                     alignItems: 'center', 
                     justifyContent: 'space-between', 
                     padding: '10px 0', 
-                    borderBottom: idx === items.length - 1 ? 'none' : '1px solid rgba(255, 255, 255, 0.08)'
+                    borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr, rgba(255, 255, 255, 0.08))'
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                    <div style={{ fontWeight: '600', fontSize: '13.5px', color: '#f4f4f5', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    <div style={{ fontWeight: '600', fontSize: '13.5px', color: 'var(--txt, #ffffff)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {item.product_name}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#a1a1aa', marginTop: '2px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', marginTop: '2px' }}>
                       AED {uPrice.toFixed(2)} each
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     {/* Quantity Controls */}
-                    <div className="force-dark-input" style={{ display: 'flex', alignItems: 'center', borderRadius: '8px', padding: '2px' }}>
+                    <div className="adaptive-input" style={{ display: 'flex', alignItems: 'center', borderRadius: '8px', padding: '2px' }}>
                       <button 
                         onClick={() => handleQtyChange(idx, -1)} 
-                        style={{ background: 'transparent', border: 'none', color: '#c5a059', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Minus size={12} />
                       </button>
-                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: '#f4f4f5' }}>
+                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: 'var(--txt, #ffffff)' }}>
                         {item.quantity}
                       </span>
                       <button 
                         onClick={() => handleQtyChange(idx, 1)} 
-                        style={{ background: 'transparent', border: 'none', color: '#c5a059', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Plus size={12} />
                       </button>
                     </div>
 
-                    <div style={{ width: '75px', textAlign: 'right', fontWeight: '700', fontSize: '13.5px', color: '#f4f4f5' }}>
+                    <div style={{ width: '75px', textAlign: 'right', fontWeight: '700', fontSize: '13.5px', color: 'var(--txt, #ffffff)' }}>
                       AED {itemTotal.toFixed(2)}
                     </div>
 
@@ -286,26 +297,25 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
         {/* Add Product Box */}
         <div 
-          className="force-dark-card"
+          className="adaptive-card"
           style={{ 
             padding: '14px', 
-            borderRadius: '12px', 
             marginBottom: '20px' 
           }}
         >
-          <label style={{ color: '#c5a059', fontSize: '12px', fontWeight: '700', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase' }}>
+          <label style={{ color: 'var(--gold, #c5a059)', fontSize: '11px', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             <PackagePlus size={14} /> Add Product
           </label>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             <select 
               value={selectedProductId} 
               onChange={e => setSelectedProductId(e.target.value)} 
-              className="force-dark-input"
+              className="adaptive-input"
               style={{ flex: 1, fontSize: '13px', borderRadius: '8px', padding: '9px 12px', outline: 'none' }}
             >
               <option value="">Select product...</option>
               {Object.keys(groupedProducts).map(catName => (
-                <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`} style={{ color: '#c5a059', fontWeight: '700' }}>
+                <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`} style={{ color: 'var(--gold, #c5a059)', fontWeight: '700' }}>
                   {groupedProducts[catName].map(p => (
                     <option key={p.id} value={p.id}>
                       {p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}
@@ -319,13 +329,13 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
               min="1" 
               value={addQty} 
               onChange={e => setAddQty(e.target.value)} 
-              className="force-dark-input"
+              className="adaptive-input"
               style={{ width: '60px', textAlign: 'center', padding: '9px 4px', borderRadius: '8px', outline: 'none' }} 
             />
             <button 
               onClick={handleAddNewItem}
-              className="force-dark-gold-btn"
-              style={{ borderRadius: '8px', padding: '9px 18px', cursor: 'pointer' }}
+              className="btn-gold-custom"
+              style={{ padding: '9px 18px' }}
             >
               Add
             </button>
@@ -338,11 +348,11 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           justify: 'space-between', 
           alignItems: 'center', 
           paddingTop: '12px', 
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+          borderTop: '1px solid var(--bdr, rgba(255, 255, 255, 0.08))',
           marginBottom: '20px'
         }}>
-          <span style={{ fontSize: '13.5px', color: '#a1a1aa', fontWeight: '500' }}>New Total Amount:</span>
-          <span style={{ fontSize: '20px', fontWeight: '800', color: '#c5a059' }}>
+          <span style={{ fontSize: '13.5px', color: 'var(--txt2, #a1a1aa)', fontWeight: '500' }}>New Total Amount:</span>
+          <span style={{ fontSize: '20px', fontWeight: '800', color: 'var(--gold, #c5a059)' }}>
             AED {total.toFixed(2)}
           </span>
         </div>
@@ -352,15 +362,14 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           <button 
             onClick={onClose} 
             disabled={saving} 
-            style={{ backgroundColor: 'transparent', color: '#a1a1aa', border: '1px solid rgba(197, 160, 89, 0.3)', padding: '9px 18px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
+            className="btn-cancel-custom"
           >
             Cancel
           </button>
           <button 
             onClick={handleSaveChanges} 
             disabled={saving} 
-            className="force-dark-gold-btn"
-            style={{ padding: '9px 22px', borderRadius: '8px', fontSize: '13px', cursor: 'pointer' }}
+            className="btn-gold-custom"
           >
             {saving ? 'Saving...' : 'Save Changes'}
           </button>
