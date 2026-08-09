@@ -90,7 +90,6 @@ body * {
 
   return (
     <div className="scroll-view">
-      {/* Page header */}
       <div className="page-header">
         <div>
           <div className="page-title">Order History</div>
@@ -99,7 +98,6 @@ body * {
         <span className="badge badge-gold">{filteredOrders.length} orders</span>
       </div>
 
-      {/* Search Bar */}
       <div style={{ marginBottom: '20px' }}>
         <div className="search-wrapper" style={{ width: '100%', position: 'relative' }}>
           <Search size={18} className="search-icon" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: 'var(--txt3)' }} />
@@ -124,7 +122,6 @@ body * {
         </div>
       </div>
 
-      {/* Content */}
       {loading
         ? <Skeleton rows={8} />
         : filteredOrders.length === 0
@@ -192,7 +189,7 @@ body * {
                         </td>
                         <td className="time-cell">{fmtDateTime(o.created_at)}</td>
                         <td><strong>AED {fmtNum(o.total_amount)}</strong></td>
-                        <td className="action-cell">
+                        <td className="action-cell" style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'flex-end' }}>
                           <button
                             className="btn btn-ghost btn-sm"
                             onClick={() => setReceiptOrder(o)}
@@ -201,11 +198,12 @@ body * {
                             <Printer size={13} strokeWidth={2} />
                           </button>
                           
-                          {isAdmin && o.status !== 'cancelled' && (
+                          {o.status !== 'cancelled' && (
                             <button
                               className="btn btn-ghost btn-sm"
                               onClick={() => setEditingOrder(o)}
                               title="Edit order items"
+                              style={{ color: 'var(--gold, #eab308)' }}
                             >
                               <Pencil size={13} strokeWidth={2} />
                             </button>
@@ -230,7 +228,6 @@ body * {
           )
       }
 
-      {/* Receipt modal */}
       {receiptOrder && (
         <Modal onClose={() => setReceiptOrder(null)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
@@ -266,7 +263,6 @@ body * {
         </Modal>
       )}
 
-      {/* Edit Order Modal */}
       {editingOrder && (
         <EditOrderModal
           order={editingOrder}
