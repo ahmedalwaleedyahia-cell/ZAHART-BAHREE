@@ -1,4 +1,4 @@
-// POS VIEW — Full cashier terminal
+﻿// POS VIEW — Full cashier terminal
 // Path: src/pages/PosPage.jsx
 import { useProducts } from '../context/ProductsContext'
 import { useOrders } from '../context/OrdersContext'
@@ -7,6 +7,7 @@ import { useState, useMemo, useRef } from 'react'
 import { fmtNum } from '../utils/format.js'
 import Modal from '../components/ui/Modal'
 import ReceiptPreview from '../components/ui/ReceiptPreview.jsx'
+import KitchenReceipt from '../components/ui/KitchenReceipt.jsx'
 import Skeleton from '../components/ui/Skeleton.jsx'
 import { useReactToPrint } from 'react-to-print'
 import {
@@ -17,6 +18,7 @@ import {
     CreditCard,
     Search,
     Layers,
+    Utensils,
 } from 'lucide-react'
 
 export default function PosPage({ showToast }) {
@@ -61,28 +63,20 @@ body * {
     visibility: hidden;
 }
 
-#receipt,
-#receipt * {
+.print-area, .print-area * {
     visibility: visible;
 }
 
-#receipt {
+.print-area {
     position: absolute;
     left: 0;
     top: 0;
-
     width: 80mm !important;
-    max-width: 80mm !important;
+}
 
-    padding: 3mm !important;
-    margin: 0 !important;
-
-    box-sizing: border-box !important;
-
-    background: white !important;
-    color: black !important;
-
-    font-size: 12px !important;
+.page-break {
+    break-after: page;
+    page-break-after: always;
 }
 `,
     });
@@ -399,25 +393,32 @@ body * {
             {receiptModal && lastOrder && (
                 <Modal onClose={() => setReceiptModal(false)}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }} >
-                        <div className="modal-title" style={{ marginBottom: 0 }} >
-                            Receipt Preview
+                        <div className="modal-title" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: '8px' }} >
+                            <span>Receipt Preview</span>
+                            <span className="badge badge-gold" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                <Utensils size={12} /> Includes Kitchen Copy
+                            </span>
                         </div>
-                        <button className="btn btn-gold btn-sm" onClick={handlePrint} >
-                            <Printer size={16} /> Print Receipt
+                        <button className="btn btn-gold btn-sm" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <Printer size={16} /> Print Both Slips
                         </button>
                     </div>
 
-                    {/* الحاوية المخصصة للطباعة التي تلتقطها مكتبة react-to-print */}
-                    <div
-                        style={{
-                            background: '#fff',
-                            borderRadius: '8px',
-                            padding: '0',
-                            display: 'flex',
-                            justifyContent: 'center'
-                        }}
-                    >
-                        <ReceiptPreview ref={receiptRef} order={lastOrder} settings={settings} />
+                    <div style={{ maxHeight: '70vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '20px', paddingRight: '4px' }}>
+                        <div ref={receiptRef} className="print-area">
+                            {/* Slip 1: Cashier/Customer Receipt */}
+                            <div>
+                                <ReceiptPreview order={lastOrder} settings={settings} />
+                            </div>
+
+                            {/* Page break for printing */}
+                            <div className="page-break" style={{ height: '20px' }} />
+
+                            {/* Slip 2: Kitchen Receipt */}
+                            <div>
+                                <KitchenReceipt order={lastOrder} />
+                            </div>
+                        </div>
                     </div>
                 </Modal>
             )}
