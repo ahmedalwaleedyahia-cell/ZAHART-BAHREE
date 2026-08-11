@@ -30,7 +30,25 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
     }
   }, [])
 
-  const [items, setItems] = useState(order?.items || [])
+  // Normalize initial items structure
+  const [items, setItems] = useState(() => {
+    return (order?.items || []).map(item => {
+      const uPrice = parseFloat(item.unit_price || item.price) || 0
+      const qty = parseInt(item.quantity, 10) || 1
+      const pName = item.product_name || item.name || 'Product'
+      return {
+        ...item,
+        product_id: item.product_id || item.id,
+        product_name: pName,
+        name: pName,
+        quantity: qty,
+        unit_price: uPrice,
+        price: uPrice,
+        total_price: qty * uPrice
+      }
+    })
+  })
+
   const [saving, setSaving] = useState(false)
   const [selectedProductId, setSelectedProductId] = useState('')
   const [addQty, setAddQty] = useState(1)
@@ -72,6 +90,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
     const unitPrice = parseFloat(product.price) || 0
     const qty = parseInt(addQty, 10) || 1
+    const pName = product.name_ar || product.name || product.name_en || 'Product'
 
     const existingIndex = items.findIndex(i => String(i.product_id) === String(product.id))
     if (existingIndex >= 0) {
@@ -90,9 +109,11 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         {
           order_id: order.id,
           product_id: product.id,
-          product_name: product.name_ar || product.name,
+          product_name: pName,
+          name: pName,
           quantity: qty,
           unit_price: unitPrice,
+          price: unitPrice,
           total_price: qty * unitPrice
         }
       ])
@@ -114,12 +135,45 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
     setSaving(true)
     try {
+      // Standardized items payload to prevent invoice missing fields
+      const normalizedItems = items.map(item => {
+        const uPrice = parseFloat(item.unit_price || item.price) || 0
+        const qty = parseInt(item.quantity, 10) || 1
+        const name = item.product_name || item.name || 'Product'
+        return {
+          ...item,
+          order_id: order.id,
+          product_id: item.product_id,
+          product_name: name,
+          name: name,
+          quantity: qty,
+          unit_price: uPrice,
+          price: uPrice,
+          total_price: qty * uPrice
+        }
+      })
+
       if (typeof updateOrderItems === 'function') {
-        const { error } = await updateOrderItems(order.id, items, total)
+        const { error } = await updateOrderItems(order.id, normalizedItems, total)
         if (error) throw new Error(error)
       }
+
       showToast('Order updated successfully', 'success')
-      if (onOrderUpdated) onOrderUpdated()
+
+      // Construct updated order payload to update invoice state directly in parent components
+      const updatedOrder = {
+        ...order,
+        items: normalizedItems,
+        subtotal: subtotal,
+        tax: tax,
+        total_amount: total,
+        total: total
+      }
+
+      if (onOrderUpdated) {
+        onOrderUpdated(updatedOrder)
+      }
+      
       onClose()
     } catch (err) {
       showToast(err.message || 'Failed to update order', 'error')
@@ -132,13 +186,13 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 99999 }}>
-      {/* Styles adapted dynamically to system Light & Dark mode variables */}
+      {/* Seamless Theme Adaptive Styles (Supports Dark & Light Mode natively) */}
       <style>{`
         .adaptive-modal-box {
-          background-color: var(--modal-bg, var(--surf, #1e1c1a)) !important;
-          color: var(--txt, #ffffff) !important;
+          background-color: var(--surf, #1c1917) !important;
+          color: var(--txt, #f4f4f5) !important;
           border: 1px solid var(--bdr, rgba(197, 160, 89, 0.3)) !important;
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5) !important;
+          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) !important;
           border-radius: 16px !important;
           max-width: 520px;
           width: 100%;
@@ -146,27 +200,27 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         }
 
         .adaptive-card {
-          background-color: var(--surf2, var(--card-bg, rgba(255, 255, 255, 0.04))) !important;
+          background-color: var(--surf2, rgba(0, 0, 0, 0.2)) !important;
           border: 1px solid var(--bdr, rgba(255, 255, 255, 0.1)) !important;
           border-radius: 12px !important;
         }
 
         .adaptive-input {
-          background-color: var(--surf3, var(--input-bg, rgba(255, 255, 255, 0.06))) !important;
-          color: var(--txt, #ffffff) !important;
+          background-color: var(--surf3, var(--surf2, rgba(0, 0, 0, 0.2))) !important;
+          color: var(--txt, inherit) !important;
           border: 1px solid var(--bdr, rgba(197, 160, 89, 0.3)) !important;
         }
 
         .adaptive-input option {
-          background-color: var(--surf, #1e1c1a) !important;
-          color: var(--txt, #ffffff) !important;
+          background-color: var(--surf, #1c1917) !important;
+          color: var(--txt, #f4f4f5) !important;
         }
 
-        /* Fix for Cancel button text disappearing on click/active/hover */
+        /* Fix Cancel button text visibility on click/active/hover across themes */
         .btn-cancel-custom {
-          background: transparent !important;
-          border: 1px solid var(--bdr, rgba(255, 255, 255, 0.2)) !important;
-          color: var(--txt, #ffffff) !important;
+          background-color: transparent !important;
+          border: 1px solid var(--bdr, rgba(128, 128, 128, 0.3)) !important;
+          color: var(--txt, inherit) !important;
           padding: 10px 24px !important;
           border-radius: 8px !important;
           font-weight: 600 !important;
@@ -178,9 +232,9 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         .btn-cancel-custom:hover, 
         .btn-cancel-custom:active, 
         .btn-cancel-custom:focus {
-          background: var(--surf2, rgba(255, 255, 255, 0.1)) !important;
-          color: var(--txt, #ffffff) !important;
-          border-color: var(--txt2, rgba(255, 255, 255, 0.4)) !important;
+          background-color: var(--surf2, rgba(128, 128, 128, 0.15)) !important;
+          color: var(--txt, inherit) !important;
+          border-color: var(--txt2, rgba(128, 128, 128, 0.5)) !important;
         }
 
         .btn-gold-custom {
@@ -201,7 +255,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
             <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '0.5px' }}>
-              EDIT ORDER <span style={{ backgroundColor: 'rgba(197, 160, 89, 0.15)', color: 'var(--gold, #c5a059)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid var(--bdr, rgba(197, 160, 89, 0.3))' }}>INV-{orderNumStr}</span>
+              EDIT ORDER <span style={{ backgroundColor: 'var(--gold-bg, rgba(197, 160, 89, 0.15))', color: 'var(--gold, #c5a059)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid var(--bdr, rgba(197, 160, 89, 0.3))' }}>INV-{orderNumStr}</span>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--txt2, #a1a1aa)', marginTop: '4px' }}>
               Modify items, quantities, or add products
@@ -209,7 +263,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           </div>
           <button 
             onClick={onClose}
-            style={{ background: 'var(--surf2, rgba(255, 255, 255, 0.08))', border: 'none', color: 'var(--txt2, #a1a1aa)', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ background: 'var(--surf2, rgba(128, 128, 128, 0.15))', border: 'none', color: 'var(--txt2, #a1a1aa)', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             aria-label="Close"
           >
             <X size={18} />
@@ -242,12 +296,12 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                     alignItems: 'center', 
                     justifyContent: 'space-between', 
                     padding: '10px 0', 
-                    borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr, rgba(255, 255, 255, 0.08))'
+                    borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr, rgba(128, 128, 128, 0.15))'
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                    <div style={{ fontWeight: '600', fontSize: '13.5px', color: 'var(--txt, #ffffff)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.product_name}
+                    <div style={{ fontWeight: '600', fontSize: '13.5px', color: 'var(--txt, inherit)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {item.product_name || item.name}
                     </div>
                     <div style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', marginTop: '2px' }}>
                       AED {uPrice.toFixed(2)} each
@@ -263,7 +317,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                       >
                         <Minus size={12} />
                       </button>
-                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: 'var(--txt, #ffffff)' }}>
+                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: 'var(--txt, inherit)' }}>
                         {item.quantity}
                       </span>
                       <button 
@@ -274,7 +328,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                       </button>
                     </div>
 
-                    <div style={{ width: '75px', textAlign: 'right', fontWeight: '700', fontSize: '13.5px', color: 'var(--txt, #ffffff)' }}>
+                    <div style={{ width: '75px', textAlign: 'right', fontWeight: '700', fontSize: '13.5px', color: 'var(--txt, inherit)' }}>
                       AED {itemTotal.toFixed(2)}
                     </div>
 
@@ -282,7 +336,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                     {!isCashier && (
                       <button 
                         onClick={() => handleRemoveItem(idx)} 
-                        style={{ background: 'rgba(239, 68, 68, 0.15)', border: 'none', color: '#ef4444', width: '30px', height: '30px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        style={{ background: 'var(--red-bg, rgba(239, 68, 68, 0.15))', border: 'none', color: 'var(--red, #ef4444)', width: '30px', height: '30px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         title="Remove Item"
                       >
                         <Trash2 size={14} />
@@ -348,7 +402,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           justify: 'space-between', 
           alignItems: 'center', 
           paddingTop: '12px', 
-          borderTop: '1px solid var(--bdr, rgba(255, 255, 255, 0.08))',
+          borderTop: '1px solid var(--bdr, rgba(128, 128, 128, 0.15))',
           marginBottom: '20px'
         }}>
           <span style={{ fontSize: '13.5px', color: 'var(--txt2, #a1a1aa)', fontWeight: '500' }}>New Total Amount:</span>
