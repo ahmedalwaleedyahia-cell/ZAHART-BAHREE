@@ -9,63 +9,64 @@
 /* ══════════════════════════════════════════════════════════════
    1. DESIGN TOKENS
    ══════════════════════════════════════════════════════════════ */
+/* 1. الوضع الفاتح (الافتراضي) */
 :root {
-  /* Gold palette */
-  --gold: #C9A96E;
-  --gold-dk: #A87C3F;
-  --gold-lt: #E8D5B0;
-  --gold-bg: rgba(201, 169, 110, 0.10);
-  --gold-bd: rgba(201, 169, 110, 0.28);
+  --bg: #f8fafc;
+  --surf: #ffffff;
+  --surf2: #f1f5f9;
+  --surf3: #e2e8f0;
 
-  /* Dark surfaces */
-  --dark: #0F0F13;
-  --dark2: #141418;
-  --dark3: #18181D;
-  --surf: #1E1E25;
-  --surf2: #242430;
-  --surf3: #2C2C3A;
-  --surf4: #343444;
+  --txt: #0f172a;
+  --txt2: #475569;
+  --txt3: #94a3b8;
 
-  /* Text */
-  --txt: #F1EDE7;
-  --txt2: #A09890;
-  --txt3: #5C5850;
-  --txt4: #38342E;
+  --bdr: #e2e8f0;
+  --gold: #c5a059;
+  --gold-bg: rgba(197, 160, 89, 0.1);
+  --gold-bd: rgba(197, 160, 89, 0.3);
 
-  /* Semantic colours */
-  --green: #22C55E;
-  --green-bg: rgba(34, 197, 94, 0.10);
+  --green: #22c55e;
+  --green-bg: rgba(34, 197, 94, 0.1);
   --green-bd: rgba(34, 197, 94, 0.25);
-  --red: #EF4444;
-  --red-bg: rgba(239, 68, 68, 0.10);
+
+  --red: #ef4444;
+  --red-bg: rgba(239, 68, 68, 0.1);
   --red-bd: rgba(239, 68, 68, 0.25);
-  --blue: #3B82F6;
-  --blue-bg: rgba(59, 130, 246, 0.10);
+
+  --blue: #3b82f6;
+  --blue-bg: rgba(59, 130, 246, 0.1);
   --blue-bd: rgba(59, 130, 246, 0.25);
-  --amber: #F59E0B;
-  --amber-bg: rgba(245, 158, 11, 0.10);
+}
 
-  /* Borders */
-  --bdr: rgba(255, 255, 255, 0.06);
-  --bdr2: rgba(255, 255, 255, 0.10);
-  --bdr3: rgba(255, 255, 255, 0.16);
+/* 2. الوضع الداكن (يتم تفعيله عبر كلاس dark أو data-theme) */
+[data-theme="dark"],
+body.dark,
+.dark {
+  --bg: #0f0f13;
+  --surf: #1c1917;
+  --surf2: #262320;
+  --surf3: #332f2b;
 
-  /* Shadows */
-  --shadow: 0 4px 24px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 16px 56px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.4);
-  --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.25);
-  --shadow-gold: 0 4px 20px rgba(201, 169, 110, 0.25);
+  --txt: #f4f4f5;
+  --txt2: #a1a1aa;
+  --txt3: #71717a;
 
-  /* Radius */
-  --r-sm: 8px;
-  --r-md: 12px;
-  --r-lg: 16px;
-  --r-xl: 20px;
-  --r-2xl: 24px;
-  --r-pill: 999px;
+  --bdr: rgba(255, 255, 255, 0.1);
+  --gold: #c5a059;
+  --gold-bg: rgba(197, 160, 89, 0.15);
+  --gold-bd: rgba(197, 160, 89, 0.35);
 
-  /* Typography */
-  --font: 'Outfit', system-ui, -apple-system, sans-serif;
+  --green: #22c55e;
+  --green-bg: rgba(34, 197, 94, 0.15);
+  --green-bd: rgba(34, 197, 94, 0.3);
+
+  --red: #ef4444;
+  --red-bg: rgba(239, 68, 68, 0.15);
+  --red-bd: rgba(239, 68, 68, 0.3);
+
+  --blue: #3b82f6;
+  --blue-bg: rgba(59, 130, 246, 0.15);
+  --blue-bd: rgba(59, 130, 246, 0.3);
 }
 
 /* ══════════════════════════════════════════════════════════════
@@ -85,7 +86,8 @@ html {
 
 body {
   font-family: var(--font);
-  background: var(--dark);
+  background: var(--bg
+  );
   color: var(--txt);
   height: 100vh;
   overflow: hidden;
