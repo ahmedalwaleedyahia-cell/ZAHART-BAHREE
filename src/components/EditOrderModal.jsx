@@ -123,10 +123,14 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
     setAddQty(1)
   }
 
+  // حساب المبالغ بدقة
   const subtotal = items.reduce((sum, item) => sum + (parseFloat(item.total_price || (item.quantity * (item.unit_price || item.price))) || 0), 0)
-  const taxRate = order?.tax_rate || 0
-  const tax = subtotal * (taxRate / 100)
-  const total = subtotal + tax
+  const discountPct = parseFloat(order?.discount_pct || order?.discountPct || 0)
+  const discountAmount = subtotal * (discountPct / 100)
+  const taxable = Math.max(0, subtotal - discountAmount)
+  const taxRate = parseFloat(order?.vat_rate || order?.vatRate || order?.tax_rate || 0)
+  const tax = taxable * (taxRate / 100)
+  const total = taxable + tax
 
   async function handleSaveChanges() {
     if (items.length === 0) {
@@ -135,7 +139,6 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
     setSaving(true)
     try {
-      // Standardized items payload to prevent invoice missing fields
       const normalizedItems = items.map(item => {
         const uPrice = parseFloat(item.unit_price || item.price) || 0
         const qty = parseInt(item.quantity, 10) || 1
@@ -149,22 +152,33 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           quantity: qty,
           unit_price: uPrice,
           price: uPrice,
+          line_total: qty * uPrice,
           total_price: qty * uPrice
         }
       })
 
+      // استدعاء التحديث بالمعايير الصحيحة للمحافظة على الفوترة
       if (typeof updateOrderItems === 'function') {
-        const { error } = await updateOrderItems(order.id, normalizedItems, total)
+        const { error } = await updateOrderItems(
+          order.id,
+          normalizedItems,
+          subtotal,
+          total,
+          tax,
+          discountAmount
+        )
         if (error) throw new Error(error)
       }
 
       showToast('Order updated successfully', 'success')
 
-      // Construct updated order payload to update invoice state directly in parent components
+      // بناء البيانات المحدثة لتمريرها للشاشة الأصلية وتحديث المعاينة فوراً
       const updatedOrder = {
         ...order,
         items: normalizedItems,
         subtotal: subtotal,
+        discount_amount: discountAmount,
+        vat_amount: tax,
         tax: tax,
         total_amount: total,
         total: total
@@ -173,7 +187,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
       if (onOrderUpdated) {
         onOrderUpdated(updatedOrder)
       }
-      
+
       onClose()
     } catch (err) {
       showToast(err.message || 'Failed to update order', 'error')
@@ -186,7 +200,6 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 99999 }}>
-      {/* Seamless Theme Adaptive Styles (Supports Dark & Light Mode natively) */}
       <style>{`
         .adaptive-modal-box {
           background-color: var(--surf, #1c1917) !important;
@@ -216,7 +229,6 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           color: var(--txt, #f4f4f5) !important;
         }
 
-        /* Fix Cancel button text visibility on click/active/hover across themes */
         .btn-cancel-custom {
           background-color: transparent !important;
           border: 1px solid var(--bdr, rgba(128, 128, 128, 0.3)) !important;
@@ -250,7 +262,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
       `}</style>
 
       <div className="adaptive-modal-box" onClick={e => e.stopPropagation()}>
-        
+
         {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
           <div>
@@ -261,7 +273,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
               Modify items, quantities, or add products
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
             style={{ background: 'var(--surf2, rgba(128, 128, 128, 0.15))', border: 'none', color: 'var(--txt2, #a1a1aa)', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             aria-label="Close"
@@ -271,13 +283,13 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         </div>
 
         {/* Existing Items List */}
-        <div 
+        <div
           className="adaptive-card"
-          style={{ 
-            maxHeight: '220px', 
-            overflowY: 'auto', 
-            marginBottom: '18px', 
-            padding: '8px 12px' 
+          style={{
+            maxHeight: '220px',
+            overflowY: 'auto',
+            marginBottom: '18px',
+            padding: '8px 12px'
           }}
         >
           {items.length === 0 ? (
@@ -289,13 +301,13 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
               const uPrice = parseFloat(item.unit_price || item.price) || 0
               const itemTotal = item.total_price || (item.quantity * uPrice)
               return (
-                <div 
-                  key={idx} 
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'space-between', 
-                    padding: '10px 0', 
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 0',
                     borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr, rgba(128, 128, 128, 0.15))'
                   }}
                 >
@@ -311,8 +323,8 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                   <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     {/* Quantity Controls */}
                     <div className="adaptive-input" style={{ display: 'flex', alignItems: 'center', borderRadius: '8px', padding: '2px' }}>
-                      <button 
-                        onClick={() => handleQtyChange(idx, -1)} 
+                      <button
+                        onClick={() => handleQtyChange(idx, -1)}
                         style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Minus size={12} />
@@ -320,8 +332,8 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                       <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: 'var(--txt, inherit)' }}>
                         {item.quantity}
                       </span>
-                      <button 
-                        onClick={() => handleQtyChange(idx, 1)} 
+                      <button
+                        onClick={() => handleQtyChange(idx, 1)}
                         style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                       >
                         <Plus size={12} />
@@ -334,8 +346,8 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
                     {/* Hide Delete Option ONLY for Cashier */}
                     {!isCashier && (
-                      <button 
-                        onClick={() => handleRemoveItem(idx)} 
+                      <button
+                        onClick={() => handleRemoveItem(idx)}
                         style={{ background: 'var(--red-bg, rgba(239, 68, 68, 0.15))', border: 'none', color: 'var(--red, #ef4444)', width: '30px', height: '30px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         title="Remove Item"
                       >
@@ -350,20 +362,20 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         </div>
 
         {/* Add Product Box */}
-        <div 
+        <div
           className="adaptive-card"
-          style={{ 
-            padding: '14px', 
-            marginBottom: '20px' 
+          style={{
+            padding: '14px',
+            marginBottom: '20px'
           }}
         >
           <label style={{ color: 'var(--gold, #c5a059)', fontSize: '11px', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
             <PackagePlus size={14} /> Add Product
           </label>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <select 
-              value={selectedProductId} 
-              onChange={e => setSelectedProductId(e.target.value)} 
+            <select
+              value={selectedProductId}
+              onChange={e => setSelectedProductId(e.target.value)}
               className="adaptive-input"
               style={{ flex: 1, fontSize: '13px', borderRadius: '8px', padding: '9px 12px', outline: 'none' }}
             >
@@ -378,15 +390,15 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
                 </optgroup>
               ))}
             </select>
-            <input 
-              type="number" 
-              min="1" 
-              value={addQty} 
-              onChange={e => setAddQty(e.target.value)} 
+            <input
+              type="number"
+              min="1"
+              value={addQty}
+              onChange={e => setAddQty(e.target.value)}
               className="adaptive-input"
-              style={{ width: '60px', textAlign: 'center', padding: '9px 4px', borderRadius: '8px', outline: 'none' }} 
+              style={{ width: '60px', textAlign: 'center', padding: '9px 4px', borderRadius: '8px', outline: 'none' }}
             />
-            <button 
+            <button
               onClick={handleAddNewItem}
               className="btn-gold-custom"
               style={{ padding: '9px 18px' }}
@@ -397,11 +409,11 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         </div>
 
         {/* Total Summary */}
-        <div style={{ 
-          display: 'flex', 
-          justify: 'space-between', 
-          alignItems: 'center', 
-          paddingTop: '12px', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          paddingTop: '12px',
           borderTop: '1px solid var(--bdr, rgba(128, 128, 128, 0.15))',
           marginBottom: '20px'
         }}>
@@ -413,16 +425,16 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
         {/* Actions */}
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <button 
-            onClick={onClose} 
-            disabled={saving} 
+          <button
+            onClick={onClose}
+            disabled={saving}
             className="btn-cancel-custom"
           >
             Cancel
           </button>
-          <button 
-            onClick={handleSaveChanges} 
-            disabled={saving} 
+          <button
+            onClick={handleSaveChanges}
+            disabled={saving}
             className="btn-gold-custom"
           >
             {saving ? 'Saving...' : 'Save Changes'}

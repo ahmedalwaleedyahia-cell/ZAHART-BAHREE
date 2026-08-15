@@ -1,5 +1,5 @@
 ﻿import { useState, useEffect, useCallback, useMemo } from 'react'
-import { DollarSign, ShoppingBag, Users, Layers, ArrowRight } from 'lucide-react'
+import { DollarSign, ShoppingBag, Users, Layers, ArrowRight, Calendar } from 'lucide-react'
 import { useOrders } from '../context/OrdersContext.jsx'
 
 import {
@@ -12,7 +12,6 @@ import { FinanceProvider } from '../context/FinanceContext.jsx'
 import SalariesSection from '../components/finance/SalariesSection.jsx'
 import ExpensesSection from '../components/finance/ExpensesSection.jsx'
 import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
-import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
 import '../styles/finance.css'
 import '../styles/unified-cards.css'
 
@@ -30,13 +29,24 @@ function FinancePageContent({ showToast }) {
   const [summary, setSummary] = useState(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
 
-  const [filter, setFilter] = useState({ dateFrom: null, dateTo: null, preset: 'all' })
+  // Custom Date Range State
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 6)
+    return d.toISOString().split('T')[0]
+  })
+
+  const [dateTo, setDateTo] = useState(() => {
+    return new Date().toISOString().split('T')[0]
+  })
+
+  const filter = useMemo(() => ({ dateFrom, dateTo }), [dateFrom, dateTo])
 
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true)
 
     try {
-      const options = { dateFrom: filter.dateFrom, dateTo: filter.dateTo }
+      const options = { dateFrom, dateTo }
       const res = await fetchFinanceSummary(options)
       const data = res?.data || res || {}
 
@@ -46,13 +56,13 @@ function FinancePageContent({ showToast }) {
           if (o.status === 'cancelled') return sum
           const created = new Date(o.created_at)
 
-          if (filter.dateFrom) {
-            const start = new Date(filter.dateFrom)
+          if (dateFrom) {
+            const start = new Date(dateFrom)
             start.setHours(0, 0, 0, 0)
             if (created < start) return sum
           }
-          if (filter.dateTo) {
-            const end = new Date(filter.dateTo)
+          if (dateTo) {
+            const end = new Date(dateTo)
             end.setHours(23, 59, 59, 999)
             if (created > end) return sum
           }
@@ -96,7 +106,7 @@ function FinancePageContent({ showToast }) {
     } finally {
       setSummaryLoading(false)
     }
-  }, [filter.dateFrom, filter.dateTo, orders])
+  }, [dateFrom, dateTo, orders])
 
   useEffect(() => {
     loadSummary()
@@ -108,10 +118,10 @@ function FinancePageContent({ showToast }) {
     return [
       {
         id: 'fin-rev',
-        label: filter.preset === 'all' ? 'Total Revenue' : 'Selected Revenue',
+        label: 'Selected Revenue',
         value: `AED ${fmtAED(s.total_revenue ?? 0)}`,
         type: 'revenue',
-        subtitle: filter.preset === 'all' ? 'All completed orders' : 'Filtered context',
+        subtitle: `${dateFrom} to ${dateTo}`,
       },
       {
         id: 'fin-sal',
@@ -125,14 +135,14 @@ function FinancePageContent({ showToast }) {
         label: 'Salaries Paid',
         value: `AED ${fmtAED(s.salaries_paid ?? 0)}`,
         type: 'salary',
-        subtitle: filter.preset === 'all' ? 'Actual paid salaries' : 'Paid in range',
+        subtitle: 'Paid in range',
       },
       {
         id: 'fin-exp',
         label: 'Total Expenses',
         value: `AED ${fmtAED(s.total_expenses ?? 0)}`,
         type: 'expense',
-        subtitle: filter.preset === 'all' ? 'All categories' : 'Filtered expenses',
+        subtitle: 'Filtered expenses',
       },
       {
         id: 'fin-prf',
@@ -144,7 +154,7 @@ function FinancePageContent({ showToast }) {
         rawValue: s.net_profit ?? 0,
       },
     ]
-  }, [summary, filter.preset])
+  }, [summary, dateFrom, dateTo])
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: <Layers size={16} strokeWidth={2} /> },
@@ -164,7 +174,64 @@ function FinancePageContent({ showToast }) {
         </div>
       </div>
 
-      <DashboardFilter onFilterChange={(f) => setFilter(f)} />
+      {/* CUSTOM RANGE PICKER */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        alignItems: 'center',
+        marginBottom: 16,
+        gap: 12,
+        flexWrap: 'wrap'
+      }}>
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          background: 'var(--surf2)',
+          padding: '6px 12px',
+          borderRadius: 8,
+          gap: 8,
+          border: '1px solid var(--bdr, rgba(255,255,255,0.1))'
+        }}>
+          <Calendar size={15} color="var(--gold, #c5a059)" />
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--txt1)' }}>
+            Custom Range:
+          </span>
+
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            style={{
+              background: 'var(--surf3)',
+              color: 'var(--txt1)',
+              border: '1px solid var(--bdr, rgba(255,255,255,0.1))',
+              borderRadius: 6,
+              padding: '4px 8px',
+              fontSize: 12,
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          />
+
+          <span style={{ fontSize: 12, color: 'var(--txt3)' }}>to</span>
+
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            style={{
+              background: 'var(--surf3)',
+              color: 'var(--txt1)',
+              border: '1px solid var(--bdr, rgba(255,255,255,0.1))',
+              borderRadius: 6,
+              padding: '4px 8px',
+              fontSize: 12,
+              outline: 'none',
+              cursor: 'pointer'
+            }}
+          />
+        </div>
+      </div>
 
       <UnifiedStatCards
         cards={mappedFinanceCards}
@@ -194,7 +261,7 @@ function FinancePageContent({ showToast }) {
                   <DollarSign size={15} /> Revenue Overview
                 </span>
                 <span className="card-badge">
-                  {filter.preset === 'all' ? 'All time' : 'Filtered'}
+                  Filtered
                 </span>
               </div>
 

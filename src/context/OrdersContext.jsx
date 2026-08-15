@@ -35,10 +35,11 @@ export function OrdersProvider({ children }) {
 
   const channelRef = useRef(null)
 
-  const loadOrders = useCallback(async () => {
+  // تعديل: جلب الطلبات بدون تقييد العدد بـ 100 فقط لضمان عدم اختفاء الطلبات القديمة
+  const loadOrders = useCallback(async (options = {}) => {
     setLoading(true)
     const [ordersResult, summaryResult] = await Promise.all([
-      fetchOrders({ limit: 100 }),
+      fetchOrders({ limit: 1000, ...options }), // تم رفع الحد إلى 1000 أو يمكنك إزالة الفلترة من orderService
       fetchTodaySummary(),
     ])
     if (!ordersResult.error) setOrders(ordersResult.data)
@@ -172,7 +173,6 @@ export function OrdersProvider({ children }) {
     return await updateOrderStatusService(id, status)
   }, [])
 
-  // دالة تحديث طريقة الدفع لطلب محدد
   const updatePaymentMethod = useCallback(async (id, newMethod) => {
     try {
       const { data, error } = await supabase
@@ -190,6 +190,60 @@ export function OrdersProvider({ children }) {
     }
   }, [])
 
+  const updateOrderItems = useCallback(async (orderId, newItems, newSubtotal, newTotal, newVatAmount = 0, newDiscountAmount = 0) => {
+    try {
+      const { error: deleteError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', orderId)
+
+      if (deleteError) throw deleteError
+
+      const formattedItems = newItems.map(item => ({
+        order_id: orderId,
+        product_id: item.product_id || item.id,
+        product_name: item.product_name || item.name,
+        unit_price: item.unit_price || item.price,
+        quantity: item.quantity || item.qty,
+        line_total: (item.unit_price || item.price) * (item.quantity || item.qty)
+      }))
+
+      const { error: insertError } = await supabase
+        .from('order_items')
+        .insert(formattedItems)
+
+      if (insertError) throw insertError
+
+      const updatePayload = {
+        subtotal: newSubtotal,
+        total_amount: newTotal,
+        vat_amount: newVatAmount,
+        discount_amount: newDiscountAmount
+      }
+
+      const { data: updatedOrder, error: orderError } = await supabase
+        .from('orders')
+        .update(updatePayload)
+        .eq('id', orderId)
+        .select()
+        .single()
+
+      if (orderError) throw orderError
+
+      const fullUpdatedOrder = { ...updatedOrder, items: formattedItems }
+
+      setOrders(prev => prev.map(o => o.id === orderId ? fullUpdatedOrder : o))
+      if (lastOrder && lastOrder.id === orderId) {
+        setLastOrder(fullUpdatedOrder)
+      }
+
+      return { data: fullUpdatedOrder, error: null }
+    } catch (err) {
+      console.error('Error updating order items:', err)
+      return { error: err.message || 'Failed to update order items' }
+    }
+  }, [lastOrder])
+
   const value = {
     cart, addToCart, removeFromCart, updateQty, clearCart,
     paymentMethod, setPaymentMethod,
@@ -204,6 +258,7 @@ export function OrdersProvider({ children }) {
     reload: loadOrders,
     updateOrderStatus,
     updatePaymentMethod,
+    updateOrderItems,
   }
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>

@@ -15,7 +15,7 @@ export async function createOrder(orderData, items) {
   const { data: order, error: orderError } = await supabase
     .from(TABLES.ORDERS)
     .insert({
-      invoice_number: orderData.invoice_number, // هنا السحر! نرسل القيمة الفريدة المجهزة لتفادي خطأ الـ 409
+      invoice_number: orderData.invoice_number,
       cashier_id: user?.id,
       cashier_name: orderData.cashierName,
       payment_method: orderData.paymentMethod,
@@ -92,11 +92,11 @@ export async function createOrder(orderData, items) {
 }
 
 // ============================================================
-// FETCH ORDERS
+// FETCH ORDERS (تم تعديل الدالة لعدم حجب الطلبات القديمة)
 // ============================================================
 
 export async function fetchOrders({
-  limit = 50,
+  limit = null,
   offset = 0,
   status = null,
   cashierId = null,
@@ -107,7 +107,11 @@ export async function fetchOrders({
     .from(TABLES.ORDERS)
     .select(`*, items:order_items(*)`)
     .order('created_at', { ascending: false })
-    .range(offset, offset + limit - 1)
+
+  // يتم تحديد النطاق فقط في حال تمرير حد (limit)
+  if (limit && typeof limit === 'number') {
+    query = query.range(offset, offset + limit - 1)
+  }
 
   if (status) query = query.eq('status', status)
   if (cashierId) query = query.eq('cashier_id', cashierId)
@@ -181,6 +185,7 @@ export async function fetchDailySales(days = 7, { dateFrom = null, dateTo = null
 // ============================================================
 // TODAY SUMMARY
 // ============================================================
+
 export async function fetchTodaySummary({ dateFrom = null, dateTo = null } = {}) {
   if (dateFrom && dateTo) {
     const { data, error } = await supabase
@@ -273,6 +278,7 @@ export async function fetchYearSummary({ dateFrom = null, dateTo = null } = {}) 
 // ============================================================
 // BEST SELLERS
 // ============================================================
+
 export async function fetchBestSellers(limit = 5, { dateFrom = null, dateTo = null } = {}) {
   if (dateFrom && dateTo) {
     const { data, error } = await supabase

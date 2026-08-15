@@ -14,10 +14,10 @@ import DonutChart from '../components/ui/DonutChart.jsx'
 import PaymentSplit from '../components/ui/PaymentSplit.jsx'
 import Empty from '../components/ui/Empty.jsx'
 import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
+import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
 
 import '../styles/unified-cards.css'
 
-// ================= COLORS =================
 const CAT_COLORS = {
   food: '#C9A96E',
   drinks: '#3B82F6',
@@ -25,14 +25,6 @@ const CAT_COLORS = {
   other: '#888888',
 }
 
-// ================= PERIODS =================
-const PERIODS = [
-  { key: 'daily', label: 'Last 7 Days', days: 7 },
-  { key: 'weekly', label: 'Last 28 Days', days: 28 },
-  { key: 'monthly', label: 'Last 90 Days', days: 90 },
-]
-
-// ================= SAFE CALL =================
 function safeCall(fn, ...args) {
   if (typeof fn !== 'function') {
     return Promise.resolve({ data: [], error: null })
@@ -40,7 +32,6 @@ function safeCall(fn, ...args) {
   return fn(...args)
 }
 
-// ================= CATEGORY NORMALIZER =================
 function normalizeCategory(category) {
   if (!category) return 'other'
 
@@ -53,29 +44,40 @@ function normalizeCategory(category) {
   return 'other'
 }
 
-// ================= COMPONENT =================
 export default function AnalyticsPage() {
-  const [period, setPeriod] = useState('daily')
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 6)
+    return d.toISOString().split('T')[0]
+  })
+
+  const [dateTo, setDateTo] = useState(() => {
+    return new Date().toISOString().split('T')[0]
+  })
+
   const [dailyData, setDailyData] = useState([])
   const [hourly, setHourly] = useState([])
   const [categoryData, setCategoryData] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // ================= FETCH DATA =================
   useEffect(() => {
     let alive = true
 
     const load = async () => {
       setLoading(true)
 
-      const days =
-        PERIODS.find(p => p.key === period)?.days || 7
-
       try {
+        const diffDays = Math.max(
+          1,
+          Math.ceil((new Date(dateTo) - new Date(dateFrom)) / (1000 * 60 * 60 * 24)) + 1
+        )
+
+        const filterObj = { dateFrom, dateTo }
+
         const [d, h, c] = await Promise.all([
-          safeCall(fetchDailySales, days),
-          safeCall(fetchHourlySales),
-          safeCall(fetchCategoryBreakdown),
+          safeCall(fetchDailySales, diffDays, filterObj),
+          safeCall(fetchHourlySales, filterObj),
+          safeCall(fetchCategoryBreakdown, filterObj),
         ])
 
         if (!alive) return
@@ -93,9 +95,8 @@ export default function AnalyticsPage() {
 
     load()
     return () => { alive = false }
-  }, [period])
+  }, [dateFrom, dateTo])
 
-  // ================= METRICS =================
   const totalRev = useMemo(
     () => dailyData.reduce((a, d) => a + Number(d.total_revenue || 0), 0),
     [dailyData]
@@ -116,14 +117,13 @@ export default function AnalyticsPage() {
     [dailyData]
   )
 
-  // ================= CARDS =================
   const unifiedAnalyticsCards = useMemo(() => ([
     {
       id: 'an-rev',
-      label: 'Revenue (Selected Period)',
+      label: 'Revenue (Selected Range)',
       value: `AED ${fmtNum(totalRev)}`,
       type: 'revenue',
-      subtitle: 'Gross interval value',
+      subtitle: `${dateFrom} to ${dateTo}`,
     },
     {
       id: 'an-ord',
@@ -146,9 +146,8 @@ export default function AnalyticsPage() {
       type: 'vat',
       subtitle: 'Card payments',
     }
-  ]), [totalRev, totalOrds, cashRev, visaRev])
+  ]), [totalRev, totalOrds, cashRev, visaRev, dateFrom, dateTo])
 
-  // ================= CATEGORY DATA =================
   const catDonutData = useMemo(() => {
     if (!categoryData?.length) return []
 
@@ -168,7 +167,6 @@ export default function AnalyticsPage() {
     return result
   }, [categoryData])
 
-  // ================= HOURLY =================
   const hourlyChartData = useMemo(() => {
     const customHourOrder = [
       7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
@@ -194,7 +192,6 @@ export default function AnalyticsPage() {
     });
   }, [hourly]);
 
-  // ================= TREND =================
   const trendData = useMemo(() =>
     dailyData.map(d => {
       let label = d.sale_date
@@ -216,53 +213,24 @@ export default function AnalyticsPage() {
 
   const hasPaymentData = cashRev > 0 || visaRev > 0
 
-  // ================= UI =================
   return (
     <div className="scroll-view">
 
-      {/* PERIOD SELECTOR */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        marginBottom: 16
-      }}>
-        <div style={{
-          display: 'inline-flex',
-          background: 'var(--surf2)',
-          padding: 4,
-          borderRadius: 8,
-          gap: 4
-        }}>
-          {PERIODS.map(p => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
-              style={{
-                padding: '6px 14px',
-                border: 'none',
-                cursor: 'pointer',
-                borderRadius: 6,
-                fontSize: 13,
-                fontWeight: 500,
-                background: period === p.key ? 'var(--surf3)' : 'transparent',
-                color: period === p.key ? 'var(--txt1)' : 'var(--txt3)',
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      <DashboardFilter
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onFilterChange={({ dateFrom, dateTo }) => {
+          setDateFrom(dateFrom)
+          setDateTo(dateTo)
+        }}
+      />
 
-      {/* CARDS */}
       <UnifiedStatCards
         cards={unifiedAnalyticsCards}
         loading={loading}
       />
 
-      {/* CATEGORY + PAYMENT */}
       <div className="two-col" style={{ marginBottom: 14 }}>
-
         <div className="card">
           <div className="card-header">
             <span className="card-title">
@@ -273,10 +241,7 @@ export default function AnalyticsPage() {
           {loading ? (
             <Skeleton rows={3} />
           ) : catDonutData.length === 0 ? (
-            <Empty
-              icon={<PieChart size={32} />}
-              text="No category data"
-            />
+            <Empty icon={<PieChart size={32} />} text="No category data" />
           ) : (
             <DonutChart data={catDonutData} />
           )}
@@ -292,18 +257,13 @@ export default function AnalyticsPage() {
           {loading ? (
             <Skeleton rows={3} />
           ) : !hasPaymentData ? (
-            <Empty
-              icon={<CreditCard size={32} />}
-              text="No payment data"
-            />
+            <Empty icon={<CreditCard size={32} />} text="No payment data" />
           ) : (
             <PaymentSplit cash={cashRev} visa={visaRev} />
           )}
         </div>
-
       </div>
 
-      {/* HOURLY */}
       <div className="card">
         <div className="card-header">
           <span className="card-title">
@@ -314,15 +274,10 @@ export default function AnalyticsPage() {
         {loading ? (
           <Skeleton rows={3} />
         ) : (
-          <BarChart
-            data={hourlyChartData}
-            height={200}
-            color="#3B82F6"
-          />
+          <BarChart data={hourlyChartData} height={200} color="#3B82F6" />
         )}
       </div>
 
-      {/* TREND */}
       <div className="card" style={{ marginTop: 14 }}>
         <div className="card-header">
           <span className="card-title">
@@ -333,11 +288,7 @@ export default function AnalyticsPage() {
         {loading ? (
           <Skeleton rows={3} />
         ) : (
-          <BarChart
-            data={trendData}
-            height={200}
-            color="#C9A96E"
-          />
+          <BarChart data={trendData} height={200} color="#C9A96E" />
         )}
       </div>
 

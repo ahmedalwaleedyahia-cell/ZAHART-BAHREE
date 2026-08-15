@@ -10,9 +10,10 @@ import {
   LayoutDashboard, ShoppingCart, Users, BarChart3, Menu,
   ClipboardList, UtensilsCrossed, Settings, Power,
   Sun, Moon, CheckCircle, AlertTriangle, Info, X,
-  Wallet, // ── تم إضافة أيقونة المحفظة للإدارة المالية ──
+  Wallet, FileText,
 } from 'lucide-react'
 import PosPage from '../pages/PosPage'
+import DailyReportsPage from '../pages/DailyReportsPage'
 import DashboardPage from '../pages/DashboardPage'
 import ProductsPage from '../pages/ProductsPage'
 import OrdersPage from '../pages/OrdersPage'
@@ -44,11 +45,13 @@ const ADMIN_NAV = [
   },
 ]
 
+// أضيفت Daily Reports تحت POS Terminal و My Orders مباشرة
 const CASHIER_NAV = [
   {
     group: 'Cashier', items: [
       { id: 'pos', label: 'POS Terminal', Icon: ShoppingCart },
       { id: 'orders', label: 'My Orders', Icon: ClipboardList },
+      { id: 'pos-reports', label: 'Daily Reports', Icon: FileText },
     ]
   },
 ]
@@ -129,7 +132,7 @@ function Toast({ msg, type }) {
   )
 }
 
-// ── Brand logo wordmark (تم حمايتها وتنسيقها بالذهبي الأصلي هنا) ──
+// ── Brand logo wordmark ──
 function BrandWordmark() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
@@ -167,7 +170,6 @@ export default function MainApp() {
   const { user, profile, isAdmin, logout, loading } = useAuth()
   const { isDark, toggle: toggleTheme } = useTheme()
 
-  // توحيد قراءة التخزين المحلي على activeView
   const [view, setView] = useState(() => {
     return localStorage.getItem('activeView') || 'pos'
   })
@@ -175,10 +177,8 @@ export default function MainApp() {
   const [toast, setToast] = useState(null)
   const [logoutPending, setLogoutPending] = useState(false)
 
-  // إنشاء متغير موحد للمالك
   const isOwner = isAdmin || user?.email === 'uhib1993@gmail.com'
 
-  // تحسين الـ useEffect لتصبح أنظف ومباشرة
   useEffect(() => {
     if (loading || !profile) return
 
@@ -198,14 +198,12 @@ export default function MainApp() {
     setTimeout(() => setToast(t => t?.id === id ? null : t), 3200)
   }, [])
 
-  // تحسين navigate باستخدام useCallback
   const navigate = useCallback((v) => {
     setView(v)
     localStorage.setItem('activeView', v)
     setSidebarOpen(false)
   }, [])
 
-  // تحسين confirmLogout باستخدام useCallback
   const confirmLogout = useCallback(async () => {
     localStorage.removeItem('activeView')
     setLogoutPending(false)
@@ -221,6 +219,7 @@ export default function MainApp() {
     users: { title: 'Users', sub: 'Staff account management' },
     settings: { title: 'Settings', sub: 'System configuration' },
     pos: { title: 'POS Terminal', sub: 'Point of Sale — Abu Dhabi' },
+    'pos-reports': { title: 'Daily Reports', sub: 'Summary of daily sales and payment modes' },
   }
   const { title, sub } = VIEW_META[view] || { title: 'ZAHART BAHREE', sub: '' }
   const navGroups = isOwner ? ADMIN_NAV : CASHIER_NAV
@@ -318,6 +317,7 @@ export default function MainApp() {
           {view === 'users' && <UsersPage showToast={showToast} />}
           {view === 'settings' && <SettingsPage showToast={showToast} />}
           {view === 'pos' && <PosPage showToast={showToast} />}
+          {view === 'pos-reports' && <DailyReportsPage />}
         </main>
       </div>
 

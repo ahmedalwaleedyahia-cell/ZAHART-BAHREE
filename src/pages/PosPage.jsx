@@ -39,11 +39,12 @@ export default function PosPage({ showToast }) {
     const [selectedCat, setSelectedCat] = useState('all')
     const [successModal, setSuccessModal] = useState(false)
     const [receiptModal, setReceiptModal] = useState(false)
+    const [failedImages, setFailedImages] = useState({})
 
     const receiptRef = useRef(null)
     const handlePrint = useReactToPrint({
         contentRef: receiptRef,
-        documentTitle: `Receipt-${lastOrder?.invoice_number || 1}`,
+        documentTitle: `Receipt-${lastOrder?.invoice_number || lastOrder?.order_number || 1}`,
         removeAfterPrint: true,
         pageStyle: `
 @page {
@@ -99,6 +100,10 @@ body * {
         setSuccessModal(true)
     }
 
+    const handleImageError = (productId) => {
+        setFailedImages(prev => ({ ...prev, [productId]: true }))
+    }
+
     return (
         <div className="pos-layout">
             <div className="pos-left">
@@ -120,6 +125,7 @@ body * {
 
                 <div className="cat-tabs">
                     <button
+                        type="button"
                         className={`cat-tab ${selectedCat === 'all' ? 'active' : ''}`}
                         onClick={() => setSelectedCat('all')}
                         style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
@@ -129,6 +135,7 @@ body * {
                     {categories.map(c => (
                         <button
                             key={c.slug}
+                            type="button"
                             className={`cat-tab ${selectedCat === c.slug ? 'active' : ''}`}
                             onClick={() => setSelectedCat(c.slug)}
                         >
@@ -156,23 +163,37 @@ body * {
                             let isLowStock = false
                             let stockText = ''
 
-                            if (p.inventory_enabled) {
+                            // 1. استثناء قسم Food من تتبع المخزون
+                            const isFood = p.category_slug === 'food'
+
+                            if (p.inventory_enabled && !isFood) {
+                                const minStock = Number(p.minimum_stock || 0)
+
+                                // 2. التمييز الدقيق بين المشروبات والحلويات
                                 if (p.category_slug === 'drinks') {
-                                    const stock = p.current_stock || 0
+                                    const stock = Number(p.current_stock || 0)
                                     isOutOfStock = stock <= 0
-                                    isLowStock = !isOutOfStock && stock <= (p.minimum_stock || 0)
+                                    isLowStock = !isOutOfStock && stock <= minStock
                                     stockText = `📦 Stock: ${stock}`
                                 } else if (p.category_slug === 'desserts') {
-                                    const weight = p.current_weight || 0
+                                    const weight = Number(p.current_weight || 0)
                                     isOutOfStock = weight <= 0
-                                    isLowStock = !isOutOfStock && weight <= (p.minimum_stock || 0)
+                                    isLowStock = !isOutOfStock && weight <= minStock
                                     stockText = `⚖ Wt: ${weight} ${p.stock_unit || 'gram'}`
+                                } else {
+                                    const generalStock = Number(p.current_stock ?? p.current_weight ?? 0)
+                                    isOutOfStock = generalStock <= 0
+                                    isLowStock = !isOutOfStock && generalStock <= minStock
+                                    stockText = `📦 Stock: ${generalStock}`
                                 }
                             }
+
+                            const hasValidImage = p.image_url && !failedImages[p.id]
 
                             return (
                                 <button
                                     key={p.id}
+                                    type="button"
                                     className="product-tile"
                                     onClick={() => !isOutOfStock && addToCart(p)}
                                     disabled={isOutOfStock}
@@ -183,22 +204,19 @@ body * {
                                         alignItems: 'center',
                                         justifyContent: 'space-between',
                                         padding: '10px',
-                                        height: p.image_url ? '200px' : '135px',
-                                        minHeight: p.image_url ? '200px' : '135px',
+                                        height: hasValidImage ? '200px' : '135px',
+                                        minHeight: hasValidImage ? '200px' : '135px',
                                         transition: 'all 0.15s ease'
                                     }}
                                 >
-                                    {p.image_url ? (
+                                    {hasValidImage ? (
                                         <div className="tile-img" style={{ width: '100%', height: '110px', overflow: 'hidden', borderRadius: '6px', marginBottom: '8px' }}>
                                             <img
                                                 src={p.image_url}
                                                 alt={p.name}
                                                 className="tile-photo"
                                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                                onError={e => {
-                                                    e.target.style.display = 'none';
-                                                    e.target.parentElement.style.display = 'none';
-                                                }}
+                                                onError={() => handleImageError(p.id)}
                                             />
                                         </div>
                                     ) : (
@@ -218,7 +236,7 @@ body * {
                                                 </span>
                                             )}
 
-                                            {p.inventory_enabled && (
+                                            {p.inventory_enabled && !isFood && (
                                                 <div style={{ fontSize: '11px', marginTop: '3px', fontWeight: '600' }}>
                                                     <div>{stockText}</div>
                                                     {isOutOfStock && <span style={{ color: 'var(--red)' }}>🔴 Out Of Stock</span>}
@@ -268,9 +286,9 @@ body * {
                             </div>
                             <div className="cart-item-sub">AED {fmtNum(item.price * item.qty)}</div>
                             <div className="cart-item-ctrl">
-                                <button className="qty-btn" type='button' onClick={() => updateQty(item.id, item.qty + 1)} aria-label="Increase" >+</button>
-                                <button className="qty-btn qty-btn-minus" onClick={() => updateQty(item.id, item.qty - 1)} aria-label="Decrease" >−</button>
-                                <button className="remove-btn" type='button' onClick={() => removeFromCart(item.id)} aria-label="Remove" >✕</button>
+                                <button className="qty-btn" type="button" onClick={() => updateQty(item.id, item.qty + 1)} aria-label="Increase" >+</button>
+                                <button className="qty-btn qty-btn-minus" type="button" onClick={() => updateQty(item.id, item.qty - 1)} aria-label="Decrease" >−</button>
+                                <button className="remove-btn" type="button" onClick={() => removeFromCart(item.id)} aria-label="Remove" >✕</button>
                             </div>
                         </div>
                     ))}
@@ -280,7 +298,17 @@ body * {
                     <textarea className="notes-input" rows={2} placeholder="Notes, allergies, special requests…" value={orderNotes} onChange={e => setOrderNotes(e.target.value)} />
                     <div className="discount-row">
                         <span className="meta-label">Discount %</span>
-                        <input className="mini-input" type="number" value={discountPct} min={0} max={100} onChange={e => setDiscountPct(Number(e.target.value) || 0)} />
+                        <input
+                            className="mini-input"
+                            type="number"
+                            value={discountPct}
+                            min={0}
+                            max={100}
+                            onChange={e => {
+                                const val = Number(e.target.value) || 0
+                                setDiscountPct(Math.min(100, Math.max(0, val)))
+                            }}
+                        />
                         <span className="meta-label" style={{ marginLeft: 'auto' }}>
                             VAT {vatRate}%
                         </span>
@@ -305,10 +333,10 @@ body * {
                         </div>
                     </div>
 
-                    {/* خيارات الطرق الثلاث للدفع */}
                     <div className="pay-method-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
                         <button
-                            type='button' className={`pay-btn ${paymentMethod === 'cash' ? 'active' : ''}`}
+                            type="button"
+                            className={`pay-btn ${paymentMethod === 'cash' ? 'active' : ''}`}
                             onClick={() => setPaymentMethod('cash')}
                         >
                             <Banknote size={15} />
@@ -316,7 +344,8 @@ body * {
                         </button>
 
                         <button
-                            type='button' className={`pay-btn ${paymentMethod === 'visa' ? 'active' : ''}`}
+                            type="button"
+                            className={`pay-btn ${paymentMethod === 'visa' ? 'active' : ''}`}
                             onClick={() => setPaymentMethod('visa')}
                         >
                             <CreditCard size={15} />
@@ -324,7 +353,8 @@ body * {
                         </button>
 
                         <button
-                            type='button' className={`pay-btn ${paymentMethod === 'unpaid' ? 'active' : ''}`}
+                            type="button"
+                            className={`pay-btn ${paymentMethod === 'unpaid' ? 'active' : ''}`}
                             onClick={() => setPaymentMethod('unpaid')}
                             style={paymentMethod === 'unpaid' ? { borderColor: '#ef4444', color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)' } : {}}
                         >
@@ -358,7 +388,12 @@ body * {
                         </div>
                     )}
 
-                    <button className="charge-btn" onClick={handleCharge} disabled={cart.length === 0 || processing || cashInsufficient}  >
+                    <button
+                        type="button"
+                        className="charge-btn"
+                        onClick={handleCharge}
+                        disabled={cart.length === 0 || processing || cashInsufficient}
+                    >
                         {processing ? 'Processing…' : `Charge AED ${fmtNum(totalAmount)}`}
                     </button>
                 </div>
@@ -371,8 +406,8 @@ body * {
                         <div className="success-tick">✓</div>
                         <h3>Order Saved!</h3>
                         <p style={{ marginTop: 4 }}>
-                          Order #{lastOrder.invoice_number || lastOrder.order_number || '1'} completed
-                          {lastOrder.payment_method === 'unpaid' && <span style={{ color: '#ef4444', fontWeight: 'bold', display: 'block', marginTop: '4px' }}>[UNPAID / غير مدفوع]</span>}
+                            Order #{lastOrder.invoice_number || lastOrder.order_number || '1'} completed
+                            {lastOrder.payment_method === 'unpaid' && <span style={{ color: '#ef4444', fontWeight: 'bold', display: 'block', marginTop: '4px' }}>[UNPAID / غير مدفوع]</span>}
                         </p>
                         {Number(lastOrder.change_amount) > 0 && (
                             <div className="change-highlight">
@@ -381,10 +416,10 @@ body * {
                             </div>
                         )}
                         <div className="modal-actions" style={{ justifyContent: 'center', marginTop: 20 }}>
-                            <button className="btn btn-ghost" onClick={() => { setReceiptModal(true); setSuccessModal(false) }} >
+                            <button type="button" className="btn btn-ghost" onClick={() => { setReceiptModal(true); setSuccessModal(false) }} >
                                 <Printer size={16} /> Receipt
                             </button>
-                            <button className="btn btn-gold" onClick={() => setSuccessModal(false)}>
+                            <button type="button" className="btn btn-gold" onClick={() => setSuccessModal(false)}>
                                 New Order
                             </button>
                         </div>
@@ -402,7 +437,7 @@ body * {
                                 <Utensils size={12} /> Includes Kitchen Copy
                             </span>
                         </div>
-                        <button className="btn btn-gold btn-sm" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <button type="button" className="btn btn-gold btn-sm" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <Printer size={16} /> Print Both Slips
                         </button>
                     </div>

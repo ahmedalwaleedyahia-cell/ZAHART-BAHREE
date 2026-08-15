@@ -14,22 +14,20 @@ import {
 } from '../services/orderService.js'
 
 import BarChart from '../components/ui/BarChart.jsx'
-import DonutChart from '../components/ui/DonutChart.jsx'
 import Skeleton from '../components/ui/Skeleton.jsx'
 import Empty from '../components/ui/Empty.jsx'
 import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
+import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
 
 import {
   Clock3,
   Package,
   TrendingUp,
-  PieChart,
   Inbox,
   FileText,
   AlertTriangle
 } from 'lucide-react'
 
-import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
 import '../styles/finance.css'
 import '../styles/unified-cards.css'
 
@@ -44,7 +42,15 @@ export default function DashboardPage() {
   const { todaySummary: contextSummary, orders, loading: globalLoading } = useOrders()
   const { products } = useProducts()
 
-  const [filter, setFilter] = useState({ dateFrom: null, dateTo: null, preset: 'all' })
+  const [dateFrom, setDateFrom] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 6)
+    return d.toISOString().split('T')[0]
+  })
+
+  const [dateTo, setDateTo] = useState(() => {
+    return new Date().toISOString().split('T')[0]
+  })
 
   const [bestSellers, setBestSellers] = useState([])
   const [weekData, setWeekData] = useState([])
@@ -59,17 +65,22 @@ export default function DashboardPage() {
 
     const load = async () => {
       setChartsLoading(true)
-      const options = { dateFrom: filter.dateFrom, dateTo: filter.dateTo }
+      const options = { dateFrom, dateTo }
 
       try {
+        const diffDays = Math.max(
+          1,
+          Math.ceil((new Date(dateTo) - new Date(dateFrom)) / (1000 * 60 * 60 * 24)) + 1
+        )
+
         const [bs, wd, hd, cd, ys, ds, ro] = await Promise.all([
           safeCall(fetchBestSellers, 5, options),
-          safeCall(fetchDailySales, 7, options),
+          safeCall(fetchDailySales, diffDays, options),
           safeCall(fetchHourlySales, options),
           safeCall(fetchCategoryBreakdown, options),
           safeCall(fetchYearSummary, options),
           safeCall(fetchTodaySummary, options),
-          safeCall(fetchOrders, { limit: 6, dateFrom: filter.dateFrom, dateTo: filter.dateTo })
+          safeCall(fetchOrders, { limit: 6, dateFrom, dateTo })
         ])
 
         if (!isActive) return
@@ -93,31 +104,31 @@ export default function DashboardPage() {
     return () => {
       isActive = false
     }
-  }, [orders?.length, filter.dateFrom, filter.dateTo])
+  }, [orders?.length, dateFrom, dateTo])
 
   const filteredOrders = useMemo(() => {
     if (!orders) return []
     return orders.filter(o => {
       if (o.status === 'cancelled') return false
-      if (!filter.dateFrom && !filter.dateTo) return true
+      if (!dateFrom && !dateTo) return true
 
       const created = new Date(o.created_at)
-      if (filter.dateFrom) {
-        const start = new Date(filter.dateFrom)
+      if (dateFrom) {
+        const start = new Date(dateFrom)
         start.setHours(0, 0, 0, 0)
         if (created < start) return false
       }
-      if (filter.dateTo) {
-        const end = new Date(filter.dateTo)
+      if (dateTo) {
+        const end = new Date(dateTo)
         end.setHours(23, 59, 59, 999)
         if (created > end) return false
       }
       return true
     })
-  }, [orders, filter.dateFrom, filter.dateTo])
+  }, [orders, dateFrom, dateTo])
 
   const summary = useMemo(() => {
-    if (filter.preset !== 'all' && filteredOrders.length >= 0) {
+    if (filteredOrders.length >= 0) {
       const revenue = filteredOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
       const count = filteredOrders.length
       const vat = filteredOrders.reduce((sum, o) => sum + Number(o.vat_amount || 0), 0)
@@ -132,7 +143,7 @@ export default function DashboardPage() {
       avg: Number(dataSource?.avg_order_value || 0),
       vat: Number(dataSource?.total_vat || 0),
     }
-  }, [contextSummary, dynamicSummary, filteredOrders, filter.preset])
+  }, [contextSummary, dynamicSummary, filteredOrders])
 
   const alertProducts = useMemo(() => {
     if (!products) return []
@@ -151,14 +162,14 @@ export default function DashboardPage() {
   const statCardsConfiguration = useMemo(() => ([
     {
       id: 'rev',
-      label: filter.preset === 'all' ? "Today's Revenue" : "Selected Revenue",
+      label: "Selected Revenue",
       value: `AED ${fmtNum(summary.revenue)}`,
       type: 'revenue',
-      subtitle: filter.preset === 'all' ? 'Live sales' : 'Filtered context'
+      subtitle: `${dateFrom} to ${dateTo}`
     },
     {
       id: 'ord',
-      label: filter.preset === 'all' ? 'Orders Today' : 'Filtered Orders',
+      label: 'Filtered Orders',
       value: summary.orders,
       type: 'orders',
       subtitle: 'Processed orders'
@@ -175,9 +186,9 @@ export default function DashboardPage() {
       label: 'VAT Collected',
       value: `AED ${fmtNum(summary.vat)}`,
       type: 'vat',
-      subtitle: filter.preset === 'all' ? '1 Jan - 31 Dec' : 'Selected range context'
+      subtitle: 'Selected range context'
     },
-  ]), [summary, filter.preset])
+  ]), [summary, dateFrom, dateTo])
 
   return (
     <div className="scroll-view">
@@ -191,7 +202,14 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <DashboardFilter onFilterChange={(f) => setFilter(f)} />
+      <DashboardFilter
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        onFilterChange={({ dateFrom, dateTo }) => {
+          setDateFrom(dateFrom)
+          setDateTo(dateTo)
+        }}
+      />
 
       <UnifiedStatCards cards={statCardsConfiguration} loading={globalLoading || chartsLoading} />
 
@@ -248,13 +266,13 @@ export default function DashboardPage() {
           {globalLoading || chartsLoading ? <Skeleton rows={5} /> : recentOrders.length === 0 ? (
             <Empty icon={<FileText size={32} />} text="No orders" />
           ) : (
-              recentOrders.map(o => (
-                <div key={o.id} className="list-row">
-                  <span>#{o.invoice_number || o.order_number || '1'}</span>
-                  <span>{fmtDateTime(o.created_at)}</span>
-                  <span>AED {fmtNum(o.total_amount)}</span>
-                </div>
-              ))
+            recentOrders.map(o => (
+              <div key={o.id} className="list-row">
+                <span>#{o.invoice_number || o.order_number || '1'}</span>
+                <span>{fmtDateTime(o.created_at)}</span>
+                <span>AED {fmtNum(o.total_amount)}</span>
+              </div>
+            ))
           )}
         </div>
       </div>
