@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useOrders } from '../context/OrdersContext'
 import { fmtNum } from '../utils/format.js'
 import {
-    ShoppingBag, CheckCircle, AlertCircle
+    ShoppingBag, CheckCircle, AlertCircle, XCircle
 } from 'lucide-react'
 
 import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
@@ -15,15 +15,16 @@ export default function DailyReportsPage() {
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
 
-    // تصفية الطلبات بدقة عالية حسب التوقيت المحلي تفادياً لمشاكل التوقيت العالمي (UTC)
+    // تصفية الطلبات واستبعاد الطلبات الملغاة لتجنب احتسابها في المبيعات
     const filteredOrders = useMemo(() => {
         if (!orders) return []
 
         return orders.filter(order => {
+            if (order.status === 'cancelled') return false
+
             const rawDate = order.created_at || order.date
             if (!rawDate) return false
 
-            // تحويل تاريخ الطلب إلى YYYY-MM-DD بالتوقيت المحلي للجهاز
             const d = new Date(rawDate)
             const year = d.getFullYear()
             const month = String(d.getMonth() + 1).padStart(2, '0')
@@ -37,7 +38,7 @@ export default function DailyReportsPage() {
         })
     }, [orders, startDate, endDate])
 
-    // حساب الإحصائيات المالية
+    // حساب الإحصائيات المالية بدقة مع استبعاد الطلبات الآجلة من المحصل الفعلي
     const stats = useMemo(() => {
         let totalSales = 0
         let cashSales = 0
@@ -66,7 +67,6 @@ export default function DailyReportsPage() {
         }
     }, [filteredOrders])
 
-    // إعداد كروت الإحصائيات الموحدة
     const dailyCards = useMemo(() => ([
         {
             id: 'dr-paid',
@@ -110,7 +110,6 @@ export default function DailyReportsPage() {
     return (
         <div className="scroll-view">
 
-            {/* الهيدر وفلتر التاريخ الموحد */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
                 <div>
                     <h1 className="page-title" style={{ margin: 0 }}>Reports</h1>
@@ -124,10 +123,8 @@ export default function DailyReportsPage() {
                 />
             </div>
 
-            {/* الكروت الموحدة */}
             <UnifiedStatCards cards={dailyCards} loading={loading} className="mb-4" />
 
-            {/* جدول المبيعات بأسلوب Unified Design System */}
             <div className="card" style={{ marginTop: '20px' }}>
                 <div className="card-header">
                     <span className="card-title">

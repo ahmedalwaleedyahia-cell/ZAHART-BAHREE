@@ -261,73 +261,88 @@ export async function fetchTotalExpenses(options = {}) {
 // FINANCE SUMMARY (Filtered Net Profit Calculation)
 // ============================================================
 
-export async function fetchFinanceSummary(options = {}) {
-  // 1. Build Orders Query (Revenue & VAT)
-  let revenueQuery = supabase
-    .from('orders')
-    .select('total_amount, vat_amount, created_at')
-    .eq('status', 'completed')
+export async function fetchFinanceSummary({ dateFrom, dateTo } = {}) {
+  try {
+    let ordersQuery = supabase
+      .from('orders')
+      .select('id, total_amount, payment_method, status, vat_amount, created_at')
+      .neq('status', 'cancelled')
 
-  if (options.dateFrom) revenueQuery = revenueQuery.gte('created_at', options.dateFrom)
-  if (options.dateTo) revenueQuery = revenueQuery.lte('created_at', options.dateTo)
+    let expensesQuery = supabase
+      .from('expenses')
+      .select('id, amount, expense_date')
 
-  // 2. Build Salaries Query (Active Base Monthly)
-  const salariesQuery = supabase
-    .from(FINANCE_TABLES.SALARIES)
-    .select('monthly_salary')
-    .eq('is_active', true)
+    let salariesQuery = supabase
+      .from('salary_payments')
+      .select('id, amount, payment_date')
 
-  // 3. Build Salary Payments Query
-  let paymentsQuery = supabase
-    .from(FINANCE_TABLES.SALARY_PAYMENTS)
-    .select('amount, payment_date')
+    if (dateFrom) {
+      const fromIso = `${dateFrom}T00:00:00.000Z`
+      ordersQuery = ordersQuery.gte('created_at', fromIso)
+      expensesQuery = expensesQuery.gte('expense_date', dateFrom)
+      salariesQuery = salariesQuery.gte('payment_date', dateFrom)
+    }
 
-  if (options.dateFrom) paymentsQuery = paymentsQuery.gte('payment_date', options.dateFrom)
-  if (options.dateTo) paymentsQuery = paymentsQuery.lte('payment_date', options.dateTo)
+    if (dateTo) {
+      const toIso = `${dateTo}T23:59:59.999Z`
+      ordersQuery = ordersQuery.lte('created_at', toIso)
+      expensesQuery = expensesQuery.lte('expense_date', dateTo)
+      salariesQuery = salariesQuery.lte('payment_date', dateTo)
+    }
 
-  // 4. Build Expenses Query
-  let expensesQuery = supabase
-    .from(FINANCE_TABLES.EXPENSES)
-    .select('cost, expense_date')
+    const [ordersRes, expensesRes, salariesRes] = await Promise.all([
+      ordersQuery,
+      expensesQuery,
+      salariesQuery
+    ])
 
-  if (options.dateFrom) expensesQuery = expensesQuery.gte('expense_date', options.dateFrom)
-  if (options.dateTo) expensesQuery = expensesQuery.lte('expense_date', options.dateTo)
+    if (ordersRes.error) throw ordersRes.error
+    if (expensesRes.error) throw expensesRes.error
+    if (salariesRes.error) throw salariesRes.error
 
-  // Execute all queries in parallel
-  const [revenueRes, salariesRes, paymentsRes, expensesRes] = await Promise.all([
-    revenueQuery,
-    salariesQuery,
-    paymentsQuery,
-    expensesQuery,
-  ])
+    const orders = ordersRes.data || []
+    const expenses = expensesRes.data || []
+    const salaries = salariesRes.data || []
 
-  const total_revenue = (revenueRes.data || []).reduce((s, o) => s + Number(o.total_amount || 0), 0)
-  const vat_collected = (revenueRes.data || []).reduce((s, o) => s + Number(o.vat_amount || 0), 0)
-  const total_salaries = (salariesRes.data || []).reduce((s, r) => s + Number(r.monthly_salary || 0), 0)
-  const salaries_paid = (paymentsRes.data || []).reduce((s, p) => s + Number(p.amount || 0), 0)
-  const total_expenses = (expensesRes.data || []).reduce((s, e) => s + Number(e.cost || 0), 0)
+    let total_revenue = 0
+    let cash_sales = 0
+    let visa_sales = 0
+    let vat_collected = 0
 
-  const net_profit = total_revenue - salaries_paid - total_expenses - vat_collected
+    orders.forEach(order => {
+      const amount = Number(order.total_amount) || 0
+      const vat = Number(order.vat_amount) || 0
+      const method = (order.payment_method || '').toLowerCase().trim()
 
-  return {
-    totalSalaries: total_salaries,
-    salariesPaid: salaries_paid,
-    totalExpenses: total_expenses,
-    totalRevenue: total_revenue,
-    vatCollected: vat_collected,
-    netProfit: net_profit,
-    data: {
+      total_revenue += amount
+      vat_collected += vat
+
+      if (method === 'cash') {
+        cash_sales += amount
+      } else if (method === 'visa' || method === 'card' || method === 'mastercard') {
+        visa_sales += amount
+      }
+    })
+
+    const total_expenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+    const salaries_paid = salaries.reduce((sum, s) => sum + (Number(s.amount) || 0), 0)
+
+    // حساب صافي الربح: (إجمالي المبيعات - ضريبة القيمة المضافة) - المصروفات - الرواتب المدفوعة فعلياً
+    const net_profit = (total_revenue - vat_collected) - total_expenses - salaries_paid
+
+    return {
       total_revenue,
-      total_salaries,
-      salaries_paid,
-      total_expenses,
+      cash_sales,
+      visa_sales,
       vat_collected,
+      total_expenses,
+      salaries_paid,
       net_profit,
-      totalSalaries: total_salaries,
-      salariesPaid: salaries_paid,
-      totalExpenses: total_expenses,
-    },
-    error: null,
+      orders_count: orders.length
+    }
+  } catch (error) {
+    console.error('Error in fetchFinanceSummary:', error)
+    throw error
   }
 }
 

@@ -163,13 +163,11 @@ body * {
                             let isLowStock = false
                             let stockText = ''
 
-                            // 1. استثناء قسم Food من تتبع المخزون
                             const isFood = p.category_slug === 'food'
 
                             if (p.inventory_enabled && !isFood) {
                                 const minStock = Number(p.minimum_stock || 0)
 
-                                // 2. التمييز الدقيق بين المشروبات والحلويات
                                 if (p.category_slug === 'drinks') {
                                     const stock = Number(p.current_stock || 0)
                                     isOutOfStock = stock <= 0
@@ -399,7 +397,6 @@ body * {
                 </div>
             </div>
 
-            {/* Success modal */}
             {successModal && lastOrder && (
                 <Modal onClose={() => setSuccessModal(false)}>
                     <div className="success-screen">
@@ -427,7 +424,6 @@ body * {
                 </Modal>
             )}
 
-            {/* Receipt preview modal */}
             {receiptModal && lastOrder && (
                 <Modal onClose={() => setReceiptModal(false)}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }} >

@@ -14,9 +14,6 @@ export default function DashboardFinanceCards({ totalRevenue = 0 }) {
 
   const [loading, setLoading] = useState(true)
 
-  // =========================
-  // Load Summary
-  // =========================
   useEffect(() => {
     let live = true
 
@@ -41,22 +38,20 @@ export default function DashboardFinanceCards({ totalRevenue = 0 }) {
 
         const data = res?.data || res || {}
 
+        const salaries = Number(data.total_salaries ?? data.totalSalaries ?? 0)
+        const expenses = Number(data.total_expenses ?? data.totalExpenses ?? 0)
+        const calcNet = Number(totalRevenue) - salaries - expenses
+
         setSummary({
-          totalSalaries: Number(
-            data.total_salaries ?? data.totalSalaries ?? 0
-          ),
+          totalSalaries: salaries,
           salariesPaid: Number(
             data.salaries_paid ?? data.salariesPaid ?? 0
           ),
-          totalExpenses: Number(
-            data.total_expenses ?? data.totalExpenses ?? 0
-          ),
+          totalExpenses: expenses,
           vatCollected: Number(
             data.vat_collected ?? data.vatCollected ?? 0
           ),
-          netProfit: Number(
-            data.net_profit ?? data.netProfit ?? 0
-          ),
+          netProfit: calcNet,
         })
       } catch (err) {
         console.error('Finance summary error:', err)
@@ -82,17 +77,11 @@ export default function DashboardFinanceCards({ totalRevenue = 0 }) {
     }
   }, [totalRevenue])
 
-  // =========================
-  // Derived values
-  // =========================
   const profitable = useMemo(
     () => summary.netProfit >= 0,
     [summary.netProfit]
   )
 
-  // =========================
-  // Loading UI (better UX)
-  // =========================
   if (loading) {
     return (
       <div className="dash-finance-strip">
@@ -106,9 +95,6 @@ export default function DashboardFinanceCards({ totalRevenue = 0 }) {
     )
   }
 
-  // =========================
-  // UI
-  // =========================
   return (
     <div className="dash-finance-strip">
 
@@ -158,21 +144,19 @@ export default function DashboardFinanceCards({ totalRevenue = 0 }) {
 
       {/* Net Profit */}
       <div
-        className={`dash-finance-card ${profitable ? 'dfc-profit' : 'dfc-loss'
-          }`}
+        className={`dash-finance-card ${profitable ? 'dfc-profit' : 'dfc-loss'}`}
       >
         <div className="dfc-label">NET PROFIT</div>
 
         <div
-          className={`dfc-value ${profitable ? 'dv-green' : 'dv-red'
-            }`}
+          className={`dfc-value ${profitable ? 'dv-green' : 'dv-red'}`}
         >
           {profitable ? '+' : ''}
           AED {fmtAED(summary.netProfit)}
         </div>
 
         <div className="dfc-sub">
-          Revenue − Paid − Expenses − VAT
+          Revenue − Salaries − Expenses
         </div>
       </div>
 

@@ -35,11 +35,10 @@ export function OrdersProvider({ children }) {
 
   const channelRef = useRef(null)
 
-  // تعديل: جلب الطلبات بدون تقييد العدد بـ 100 فقط لضمان عدم اختفاء الطلبات القديمة
   const loadOrders = useCallback(async (options = {}) => {
     setLoading(true)
     const [ordersResult, summaryResult] = await Promise.all([
-      fetchOrders({ limit: 1000, ...options }), // تم رفع الحد إلى 1000 أو يمكنك إزالة الفلترة من orderService
+      fetchOrders({ limit: 1000, ...options }),
       fetchTodaySummary(),
     ])
     if (!ordersResult.error) setOrders(ordersResult.data)
@@ -122,7 +121,7 @@ export function OrdersProvider({ children }) {
     const generateUniqueInvoiceNumber = () => {
       const timestamp = Date.now().toString()
       const randomDigits = Math.floor(1000 + Math.random() * 9000).toString()
-      return parseInt(timestamp + randomDigits)
+      return parseInt(timestamp.slice(-6) + randomDigits)
     }
 
     const orderData = {

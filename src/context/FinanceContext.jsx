@@ -28,7 +28,10 @@ export function FinanceProvider({ children }) {
       ])
       if (!sRes.error) setSalaries(sRes.data || [])
       if (!eRes.error) setExpenses(eRes.data || [])
-      if (!sumRes.error) setSummary({ totalSalaries: sumRes.totalSalaries, totalExpenses: sumRes.totalExpenses })
+      if (!sumRes.error) setSummary({
+        totalSalaries: Number(sumRes.totalSalaries || sumRes.total_salaries || 0),
+        totalExpenses: Number(sumRes.totalExpenses || sumRes.total_expenses || 0)
+      })
     } catch (err) {
       console.error('[FinanceContext] load error:', err)
     } finally {

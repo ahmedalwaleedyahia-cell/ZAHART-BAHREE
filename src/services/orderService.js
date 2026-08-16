@@ -5,6 +5,13 @@
 
 import { supabase, TABLES, VIEWS } from '../supabase/supabase.js'
 
+// مساعد لضبط تواريخ UTC لضمان استعلامات دقيقة
+const formatUtcRange = (dateFrom, dateTo) => {
+  const fromIso = dateFrom ? `${dateFrom}T00:00:00.000Z` : null
+  const toIso = dateTo ? `${dateTo}T23:59:59.999Z` : null
+  return { fromIso, toIso }
+}
+
 // ============================================================
 // CREATE ORDER
 // ============================================================
@@ -42,7 +49,7 @@ export async function createOrder(orderData, items) {
     product_emoji: item.product_emoji || '🍽️',
     unit_price: item.unit_price,
     quantity: item.quantity,
-    line_total: item.unit_price * item.quantity,
+    line_total: Number(item.unit_price) * Number(item.quantity),
     notes: item.notes || null,
   }))
 
@@ -61,7 +68,7 @@ export async function createOrder(orderData, items) {
 
     const { data: product } = await supabase
       .from(TABLES.PRODUCTS)
-      .select('category_slug, inventory_enabled, current_stock, current_weight, pieces_per_packet, number_of_packets')
+      .select('category_slug, inventory_enabled, current_stock, current_weight, pieces_per_packet')
       .eq('id', item.product_id)
       .single()
 
@@ -84,6 +91,13 @@ export async function createOrder(orderData, items) {
           .from(TABLES.PRODUCTS)
           .update({ current_weight: newWeight })
           .eq('id', item.product_id)
+      } else {
+        // دعم خصم جميع أنواع المنتجات الأخرى
+        const newStock = Math.max(0, (product.current_stock || 0) - item.quantity)
+        await supabase
+          .from(TABLES.PRODUCTS)
+          .update({ current_stock: newStock })
+          .eq('id', item.product_id)
       }
     }
   }
@@ -92,7 +106,7 @@ export async function createOrder(orderData, items) {
 }
 
 // ============================================================
-// FETCH ORDERS (تم تعديل الدالة لعدم حجب الطلبات القديمة)
+// FETCH ORDERS
 // ============================================================
 
 export async function fetchOrders({
@@ -108,19 +122,16 @@ export async function fetchOrders({
     .select(`*, items:order_items(*)`)
     .order('created_at', { ascending: false })
 
-  // يتم تحديد النطاق فقط في حال تمرير حد (limit)
   if (limit && typeof limit === 'number') {
     query = query.range(offset, offset + limit - 1)
   }
 
   if (status) query = query.eq('status', status)
   if (cashierId) query = query.eq('cashier_id', cashierId)
-  if (dateFrom) {
-    query = query.gte('created_at', `${dateFrom}T00:00:00`)
-  }
-  if (dateTo) {
-    query = query.lte('created_at', `${dateTo}T23:59:59`)
-  }
+
+  const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
+  if (fromIso) query = query.gte('created_at', fromIso)
+  if (toIso) query = query.lte('created_at', toIso)
 
   const { data, error } = await query
   if (error) return { data: [], error: error.message }
@@ -164,9 +175,7 @@ export async function updateOrderStatus(id, status) {
 // ============================================================
 
 export async function fetchDailySales(days = 7, { dateFrom = null, dateTo = null } = {}) {
-  let query = supabase
-    .from(VIEWS.DAILY_SALES)
-    .select('*')
+  let query = supabase.from(VIEWS.DAILY_SALES).select('*')
 
   if (dateFrom && dateTo) {
     query = query.gte('sale_date', dateFrom).lte('sale_date', dateTo)
@@ -187,48 +196,32 @@ export async function fetchDailySales(days = 7, { dateFrom = null, dateTo = null
 // ============================================================
 
 export async function fetchTodaySummary({ dateFrom = null, dateTo = null } = {}) {
-  if (dateFrom && dateTo) {
-    const { data, error } = await supabase
-      .from(TABLES.ORDERS)
-      .select('total_amount, vat_amount')
-      .eq('status', 'completed')
-      .gte('created_at', `${dateFrom}T00:00:00`)
-      .lte('created_at', `${dateTo}T23:59:59`)
+  const { fromIso, toIso } = formatUtcRange(
+    dateFrom || new Date().toISOString().split('T')[0],
+    dateTo || new Date().toISOString().split('T')[0]
+  )
 
-    if (error) return { data: null, error: error.message }
-
-    const count = data?.length || 0
-    const totalRev = data?.reduce((acc, o) => acc + Number(o.total_amount || 0), 0) || 0
-    const totalVat = data?.reduce((acc, o) => acc + Number(o.vat_amount || 0), 0) || 0
-
-    return {
-      data: {
-        order_count: count,
-        total_revenue: totalRev,
-        avg_order_value: count > 0 ? totalRev / count : 0,
-        total_vat: totalVat
-      },
-      error: null
-    }
-  }
-
-  const today = new Date().toISOString().split('T')[0]
   const { data, error } = await supabase
-    .from(VIEWS.DAILY_SALES)
-    .select('*')
-    .eq('sale_date', today)
-    .maybeSingle()
+    .from(TABLES.ORDERS)
+    .select('total_amount, vat_amount')
+    .eq('status', 'completed')
+    .gte('created_at', fromIso)
+    .lte('created_at', toIso)
 
   if (error) return { data: null, error: error.message }
 
+  const count = data?.length || 0
+  const totalRev = data?.reduce((acc, o) => acc + Number(o.total_amount || 0), 0) || 0
+  const totalVat = data?.reduce((acc, o) => acc + Number(o.vat_amount || 0), 0) || 0
+
   return {
-    data: data || {
-      order_count: 0,
-      total_revenue: 0,
-      avg_order_value: 0,
-      total_vat: 0,
+    data: {
+      order_count: count,
+      total_revenue: totalRev,
+      avg_order_value: count > 0 ? totalRev / count : 0,
+      total_vat: totalVat
     },
-    error: null,
+    error: null
   }
 }
 
@@ -238,24 +231,18 @@ export async function fetchTodaySummary({ dateFrom = null, dateTo = null } = {})
 
 export async function fetchYearSummary({ dateFrom = null, dateTo = null } = {}) {
   const now = new Date()
-  const yearStart = dateFrom ? `${dateFrom}T00:00:00` : `${now.getFullYear()}-01-01`
-  const yearEnd = dateTo ? `${dateTo}T23:59:59` : `${now.getFullYear()}-12-31T23:59:59`
+  const yearStart = dateFrom ? dateFrom : `${now.getFullYear()}-01-01`
+  const yearEnd = dateTo ? dateTo : `${now.getFullYear()}-12-31`
+  const { fromIso, toIso } = formatUtcRange(yearStart, yearEnd)
 
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
-    .select(`
-      total_amount,
-      vat_amount,
-      subtotal,
-      discount_amount
-    `)
+    .select(`total_amount, vat_amount, subtotal, discount_amount`)
     .eq('status', 'completed')
-    .gte('created_at', yearStart)
-    .lte('created_at', yearEnd)
+    .gte('created_at', fromIso)
+    .lte('created_at', toIso)
 
-  if (error) {
-    return { data: null, error: error.message }
-  }
+  if (error) return { data: null, error: error.message }
 
   const summary = {
     totalRevenue: 0,
@@ -281,12 +268,13 @@ export async function fetchYearSummary({ dateFrom = null, dateTo = null } = {}) 
 
 export async function fetchBestSellers(limit = 5, { dateFrom = null, dateTo = null } = {}) {
   if (dateFrom && dateTo) {
+    const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
     const { data, error } = await supabase
       .from(TABLES.ORDER_ITEMS)
       .select('product_name, quantity, orders!inner(status, created_at)')
       .eq('orders.status', 'completed')
-      .gte('orders.created_at', `${dateFrom}T00:00:00`)
-      .lte('orders.created_at', `${dateTo}T23:59:59`)
+      .gte('orders.created_at', fromIso)
+      .lte('orders.created_at', toIso)
 
     if (error) return { data: [], error: error.message }
 
@@ -322,14 +310,17 @@ export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) 
     .select('created_at, total_amount')
     .eq('status', 'completed')
 
-  if (dateFrom && dateTo) {
-    query = query.gte('created_at', `${dateFrom}T00:00:00`).lte('created_at', `${dateTo}T23:59:59`)
+  const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
+  if (fromIso && toIso) {
+    query = query.gte('created_at', fromIso).lte('created_at', toIso)
   }
 
   const { data, error } = await query
   if (error) return { data: [], error: error.message }
 
   const buckets = {}
+  for (let i = 0; i < 24; i++) buckets[i] = 0
+
     ; (data || []).forEach(o => {
       const hour = new Date(o.created_at).getHours()
       buckets[hour] = (buckets[hour] || 0) + Number(o.total_amount || 0)
@@ -365,17 +356,17 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
     `)
     .eq('orders.status', 'completed')
 
-  if (dateFrom && dateTo) {
-    query = query.gte('orders.created_at', `${dateFrom}T00:00:00`).lte('orders.created_at', `${dateTo}T23:59:59`)
+  const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
+  if (fromIso && toIso) {
+    query = query.gte('orders.created_at', fromIso).lte('orders.created_at', toIso)
   }
 
   const { data, error } = await query
-
   if (error) return { data: [], error: error.message }
 
   const agg = {}
     ; (data || []).forEach(item => {
-      const slug = item.products?.category_slug || 'unknown'
+      const slug = item.products?.category_slug || 'uncategorized'
       if (!agg[slug]) {
         agg[slug] = { revenue: 0, qty: 0 }
       }

@@ -29,7 +29,6 @@ function FinancePageContent({ showToast }) {
   const [summary, setSummary] = useState(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
 
-  // Custom Date Range State
   const [dateFrom, setDateFrom] = useState(() => {
     const d = new Date()
     d.setDate(d.getDate() - 6)
@@ -42,6 +41,7 @@ function FinancePageContent({ showToast }) {
 
   const filter = useMemo(() => ({ dateFrom, dateTo }), [dateFrom, dateTo])
 
+  // فلترة صحيحة وتصحيح معادلة الأرباح الصافية بدون تكرار أو زيادة وهمية
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true)
 
@@ -53,17 +53,15 @@ function FinancePageContent({ showToast }) {
       let calculatedRevenue = 0
       if (orders && orders.length > 0) {
         calculatedRevenue = orders.reduce((sum, o) => {
-          if (o.status === 'cancelled') return sum
+          if (o.status === 'cancelled' || (o.payment_method || '').toLowerCase() === 'unpaid') return sum
           const created = new Date(o.created_at)
 
           if (dateFrom) {
-            const start = new Date(dateFrom)
-            start.setHours(0, 0, 0, 0)
+            const start = new Date(`${dateFrom}T00:00:00`)
             if (created < start) return sum
           }
           if (dateTo) {
-            const end = new Date(dateTo)
-            end.setHours(23, 59, 59, 999)
+            const end = new Date(`${dateTo}T23:59:59.999`)
             if (created > end) return sum
           }
           return sum + Number(o.total_amount || 0)
@@ -174,7 +172,6 @@ function FinancePageContent({ showToast }) {
         </div>
       </div>
 
-      {/* CUSTOM RANGE PICKER */}
       <div style={{
         display: 'flex',
         justifyContent: 'flex-end',

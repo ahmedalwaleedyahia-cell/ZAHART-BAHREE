@@ -106,32 +106,32 @@ export default function DashboardPage() {
     }
   }, [orders?.length, dateFrom, dateTo])
 
+  // فلترة صحيحة مع استبعاد الطلبات الملغاة ومعالجة النطاق الزمني المحلي
   const filteredOrders = useMemo(() => {
     if (!orders) return []
     return orders.filter(o => {
       if (o.status === 'cancelled') return false
-      if (!dateFrom && !dateTo) return true
 
       const created = new Date(o.created_at)
       if (dateFrom) {
-        const start = new Date(dateFrom)
-        start.setHours(0, 0, 0, 0)
+        const start = new Date(`${dateFrom}T00:00:00`)
         if (created < start) return false
       }
       if (dateTo) {
-        const end = new Date(dateTo)
-        end.setHours(23, 59, 59, 999)
+        const end = new Date(`${dateTo}T23:59:59.999`)
         if (created > end) return false
       }
       return true
     })
   }, [orders, dateFrom, dateTo])
 
+  // احتساب الإيرادات المحصلة الفعلية بدون المبيعات غير المدفوعة
   const summary = useMemo(() => {
     if (filteredOrders.length >= 0) {
-      const revenue = filteredOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
+      const paidOrders = filteredOrders.filter(o => (o.payment_method || '').toLowerCase() !== 'unpaid')
+      const revenue = paidOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
       const count = filteredOrders.length
-      const vat = filteredOrders.reduce((sum, o) => sum + Number(o.vat_amount || 0), 0)
+      const vat = paidOrders.reduce((sum, o) => sum + Number(o.vat_amount || 0), 0)
       const avg = count > 0 ? revenue / count : 0
       return { revenue, orders: count, avg, vat }
     }

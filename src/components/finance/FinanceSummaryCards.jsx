@@ -13,11 +13,9 @@ export default function FinanceSummaryCards() {
   const { summary, loading } = useFinance()
   const { todaySummary } = useOrders()
 
-  // Use total revenue from orders (all-time using todaySummary isn't right;
-  // we compute it across all orders from context — use what's available)
   const totalRevenue = Number(todaySummary?.total_revenue ?? 0)
-  const totalSalaries = summary.totalSalaries
-  const totalExpenses = summary.totalExpenses
+  const totalSalaries = Number(summary?.totalSalaries ?? 0)
+  const totalExpenses = Number(summary?.totalExpenses ?? 0)
   const netProfit = calcNetProfit(totalRevenue, totalSalaries, totalExpenses)
   const profitable = isProfitable(netProfit)
 
