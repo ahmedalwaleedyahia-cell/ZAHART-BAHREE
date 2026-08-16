@@ -15,24 +15,25 @@ export default function DailyReportsPage() {
     const [startDate, setStartDate] = useState('')
     const [endDate, setEndDate] = useState('')
 
-    // تصفية الطلبات بناءً على نطاق التاريخ المحدد تلقائياً
+    // تصفية الطلبات بدقة عالية حسب التوقيت المحلي تفادياً لمشاكل التوقيت العالمي (UTC)
     const filteredOrders = useMemo(() => {
         if (!orders) return []
 
         return orders.filter(order => {
-            const orderDate = new Date(order.created_at || order.date)
+            const rawDate = order.created_at || order.date
+            if (!rawDate) return false
 
-            if (!startDate && !endDate) {
-                return true
-            }
+            // تحويل تاريخ الطلب إلى YYYY-MM-DD بالتوقيت المحلي للجهاز
+            const d = new Date(rawDate)
+            const year = d.getFullYear()
+            const month = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            const orderDateStr = `${year}-${month}-${day}`
 
-            let start = startDate ? new Date(startDate) : new Date(0)
-            start.setHours(0, 0, 0, 0)
+            if (startDate && orderDateStr < startDate) return false
+            if (endDate && orderDateStr > endDate) return false
 
-            let end = endDate ? new Date(endDate) : new Date()
-            end.setHours(23, 59, 59, 999)
-
-            return orderDate >= start && orderDate <= end
+            return true
         })
     }, [orders, startDate, endDate])
 
