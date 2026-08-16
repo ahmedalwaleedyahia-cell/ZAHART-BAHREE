@@ -1,21 +1,31 @@
 import { useState, useMemo } from 'react'
 import { useOrders } from '../context/OrdersContext'
 import { fmtNum } from '../utils/format.js'
-import {
-    ShoppingBag, CheckCircle, AlertCircle, XCircle
-} from 'lucide-react'
+import { ShoppingBag, CheckCircle, AlertCircle } from 'lucide-react'
 
 import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
 import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
 import '../styles/unified-cards.css'
 
+// دالة توحيد تحويل التاريخ للتوقيت المحلي للجهاز YYYY-MM-DD
+const getLocalDateString = (dateInput) => {
+    if (!dateInput) return ''
+    const d = new Date(dateInput)
+    if (isNaN(d.getTime())) return ''
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+}
+
 export default function DailyReportsPage() {
     const { orders, loading } = useOrders()
 
-    const [startDate, setStartDate] = useState('')
-    const [endDate, setEndDate] = useState('')
+    // الضبط الافتراضي لتاريخ اليوم محلياً
+    const [startDate, setStartDate] = useState(() => getLocalDateString(new Date()))
+    const [endDate, setEndDate] = useState(() => getLocalDateString(new Date()))
 
-    // تصفية الطلبات واستبعاد الطلبات الملغاة لتجنب احتسابها في المبيعات
+    // تصفية الطلبات المطبقة بدقة التوقيت المحلي
     const filteredOrders = useMemo(() => {
         if (!orders) return []
 
@@ -23,13 +33,8 @@ export default function DailyReportsPage() {
             if (order.status === 'cancelled') return false
 
             const rawDate = order.created_at || order.date
-            if (!rawDate) return false
-
-            const d = new Date(rawDate)
-            const year = d.getFullYear()
-            const month = String(d.getMonth() + 1).padStart(2, '0')
-            const day = String(d.getDate()).padStart(2, '0')
-            const orderDateStr = `${year}-${month}-${day}`
+            const orderDateStr = getLocalDateString(rawDate)
+            if (!orderDateStr) return false
 
             if (startDate && orderDateStr < startDate) return false
             if (endDate && orderDateStr > endDate) return false
@@ -38,7 +43,7 @@ export default function DailyReportsPage() {
         })
     }, [orders, startDate, endDate])
 
-    // حساب الإحصائيات المالية بدقة مع استبعاد الطلبات الآجلة من المحصل الفعلي
+    // حساب الإحصائيات المالية الموحدة
     const stats = useMemo(() => {
         let totalSales = 0
         let cashSales = 0
@@ -55,6 +60,7 @@ export default function DailyReportsPage() {
                 totalSales += amount
                 if (method === 'cash') cashSales += amount
                 else if (method === 'visa' || method === 'card') visaSales += amount
+                else cashSales += amount
             }
         })
 
@@ -109,7 +115,6 @@ export default function DailyReportsPage() {
 
     return (
         <div className="scroll-view">
-
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
                 <div>
                     <h1 className="page-title" style={{ margin: 0 }}>Reports</h1>
@@ -180,7 +185,6 @@ export default function DailyReportsPage() {
                     </div>
                 )}
             </div>
-
         </div>
     )
 }

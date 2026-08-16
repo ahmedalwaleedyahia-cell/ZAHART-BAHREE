@@ -31,6 +31,17 @@ import {
 import '../styles/finance.css'
 import '../styles/unified-cards.css'
 
+// دالة توحيد تحويل التاريخ للتوقيت المحلي للجهاز YYYY-MM-DD
+const getLocalDateString = (dateInput) => {
+  if (!dateInput) return ''
+  const d = new Date(dateInput)
+  if (isNaN(d.getTime())) return ''
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 async function safeCall(fn, ...args) {
   if (typeof fn !== 'function') {
     return { data: [], error: null }
@@ -42,15 +53,9 @@ export default function DashboardPage() {
   const { todaySummary: contextSummary, orders, loading: globalLoading } = useOrders()
   const { products } = useProducts()
 
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 6)
-    return d.toISOString().split('T')[0]
-  })
-
-  const [dateTo, setDateTo] = useState(() => {
-    return new Date().toISOString().split('T')[0]
-  })
+  // الضبط الافتراضي لتاريخ اليوم محلياً ليتطابق تماماً مع شاشة التقارير
+  const [dateFrom, setDateFrom] = useState(() => getLocalDateString(new Date()))
+  const [dateTo, setDateTo] = useState(() => getLocalDateString(new Date()))
 
   const [bestSellers, setBestSellers] = useState([])
   const [weekData, setWeekData] = useState([])
@@ -106,44 +111,45 @@ export default function DashboardPage() {
     }
   }, [orders?.length, dateFrom, dateTo])
 
-  // فلترة صحيحة مع استبعاد الطلبات الملغاة ومعالجة النطاق الزمني المحلي
+  // فلترة الطلبات بنفس المنطق الدقيق المتبع في DailyReports
   const filteredOrders = useMemo(() => {
     if (!orders) return []
     return orders.filter(o => {
       if (o.status === 'cancelled') return false
 
-      const created = new Date(o.created_at)
-      if (dateFrom) {
-        const start = new Date(`${dateFrom}T00:00:00`)
-        if (created < start) return false
-      }
-      if (dateTo) {
-        const end = new Date(`${dateTo}T23:59:59.999`)
-        if (created > end) return false
-      }
+      const rawDate = o.created_at || o.date
+      const orderDateStr = getLocalDateString(rawDate)
+      if (!orderDateStr) return false
+
+      if (dateFrom && orderDateStr < dateFrom) return false
+      if (dateTo && orderDateStr > dateTo) return false
+
       return true
     })
   }, [orders, dateFrom, dateTo])
 
-  // احتساب الإيرادات المحصلة الفعلية بدون المبيعات غير المدفوعة
+  // حساب المبيعات والضرائب بنفس معادلة DailyReports
   const summary = useMemo(() => {
-    if (filteredOrders.length >= 0) {
-      const paidOrders = filteredOrders.filter(o => (o.payment_method || '').toLowerCase() !== 'unpaid')
-      const revenue = paidOrders.reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
-      const count = filteredOrders.length
-      const vat = paidOrders.reduce((sum, o) => sum + Number(o.vat_amount || 0), 0)
-      const avg = count > 0 ? revenue / count : 0
-      return { revenue, orders: count, avg, vat }
-    }
+    let revenue = 0
+    let vat = 0
+    let paidCount = 0
 
-    const dataSource = dynamicSummary || contextSummary
-    return {
-      revenue: Number(dataSource?.total_revenue || 0),
-      orders: Number(dataSource?.order_count || 0),
-      avg: Number(dataSource?.avg_order_value || 0),
-      vat: Number(dataSource?.total_vat || 0),
-    }
-  }, [contextSummary, dynamicSummary, filteredOrders])
+    filteredOrders.forEach(o => {
+      const amount = Number(o.total_amount || o.total || 0)
+      const method = (o.payment_method || '').toLowerCase()
+
+      if (method !== 'unpaid') {
+        revenue += amount
+        vat += Number(o.vat_amount || 0)
+        paidCount += 1
+      }
+    })
+
+    const count = filteredOrders.length
+    const avg = paidCount > 0 ? revenue / paidCount : 0
+
+    return { revenue, orders: count, avg, vat }
+  }, [filteredOrders])
 
   const alertProducts = useMemo(() => {
     if (!products) return []
