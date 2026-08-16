@@ -15,6 +15,17 @@ import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
 import '../styles/finance.css'
 import '../styles/unified-cards.css'
 
+// دالة توحيد التاريخ للتوقيت المحلي YYYY-MM-DD
+const getLocalDateString = (dateInput) => {
+  if (!dateInput) return ''
+  const d = new Date(dateInput)
+  if (isNaN(d.getTime())) return ''
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 export default function FinancePage({ showToast }) {
   return (
     <FinanceProvider>
@@ -29,19 +40,13 @@ function FinancePageContent({ showToast }) {
   const [summary, setSummary] = useState(null)
   const [summaryLoading, setSummaryLoading] = useState(true)
 
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 6)
-    return d.toISOString().split('T')[0]
-  })
-
-  const [dateTo, setDateTo] = useState(() => {
-    return new Date().toISOString().split('T')[0]
-  })
+  // الضبط الافتراضي لتاريخ اليوم محلياً ليتطابق تماماً مع بقية النظام
+  const [dateFrom, setDateFrom] = useState(() => getLocalDateString(new Date()))
+  const [dateTo, setDateTo] = useState(() => getLocalDateString(new Date()))
 
   const filter = useMemo(() => ({ dateFrom, dateTo }), [dateFrom, dateTo])
 
-  // فلترة صحيحة وتصحيح معادلة الأرباح الصافية بدون تكرار أو زيادة وهمية
+  // تحميل الإحصائيات مع الفلترة بالتواريخ
   const loadSummary = useCallback(async () => {
     setSummaryLoading(true)
 
@@ -54,16 +59,14 @@ function FinancePageContent({ showToast }) {
       if (orders && orders.length > 0) {
         calculatedRevenue = orders.reduce((sum, o) => {
           if (o.status === 'cancelled' || (o.payment_method || '').toLowerCase() === 'unpaid') return sum
-          const created = new Date(o.created_at)
 
-          if (dateFrom) {
-            const start = new Date(`${dateFrom}T00:00:00`)
-            if (created < start) return sum
-          }
-          if (dateTo) {
-            const end = new Date(`${dateTo}T23:59:59.999`)
-            if (created > end) return sum
-          }
+          const rawDate = o.created_at || o.date
+          const orderDateStr = getLocalDateString(rawDate)
+          if (!orderDateStr) return sum
+
+          if (dateFrom && orderDateStr < dateFrom) return sum
+          if (dateTo && orderDateStr > dateTo) return sum
+
           return sum + Number(o.total_amount || 0)
         }, 0)
       } else {
@@ -72,13 +75,14 @@ function FinancePageContent({ showToast }) {
 
       const totalSalaries = Number(data.total_salaries ?? data.totalSalaries ?? 0)
       const totalExpenses = Number(data.total_expenses ?? data.totalExpenses ?? 0)
-      const netProfit = calculatedRevenue - totalSalaries - totalExpenses
+      const salariesPaid = Number(data.salaries_paid ?? data.salariesPaid ?? 0)
+      const netProfit = calculatedRevenue - salariesPaid - totalExpenses
 
       if (!res?.error) {
         setSummary({
           total_revenue: calculatedRevenue,
           total_salaries: totalSalaries,
-          salaries_paid: Number(data.salaries_paid ?? data.salariesPaid ?? 0),
+          salaries_paid: salariesPaid,
           total_expenses: totalExpenses,
           net_profit: netProfit,
         })
@@ -147,7 +151,7 @@ function FinancePageContent({ showToast }) {
         label: 'Net Profit',
         value: `AED ${fmtAED(s.net_profit ?? 0)}`,
         type: 'profit',
-        subtitle: 'Revenue − Salaries − Expenses',
+        subtitle: 'Revenue − Salaries Paid − Expenses',
         formula: true,
         rawValue: s.net_profit ?? 0,
       },
@@ -167,7 +171,7 @@ function FinancePageContent({ showToast }) {
         <div>
           <div className="page-title">Finance Dashboard</div>
           <div className="page-sub">
-            Net Profit = Revenue − Salaries − Expenses
+            Net Profit = Revenue − Salaries Paid − Expenses
           </div>
         </div>
       </div>

@@ -268,12 +268,13 @@ export async function fetchFinanceSummary({ dateFrom, dateTo } = {}) {
       .select('id, total_amount, payment_method, status, vat_amount, created_at')
       .neq('status', 'cancelled')
 
+    // تصحيح طلب حقل المصروفات بـ cost بدلاً من amount
     let expensesQuery = supabase
-      .from('expenses')
-      .select('id, amount, expense_date')
+      .from(FINANCE_TABLES.EXPENSES)
+      .select('id, cost, expense_date')
 
     let salariesQuery = supabase
-      .from('salary_payments')
+      .from(FINANCE_TABLES.SALARY_PAYMENTS)
       .select('id, amount, payment_date')
 
     if (dateFrom) {
@@ -310,25 +311,27 @@ export async function fetchFinanceSummary({ dateFrom, dateTo } = {}) {
     let vat_collected = 0
 
     orders.forEach(order => {
-      const amount = Number(order.total_amount) || 0
-      const vat = Number(order.vat_amount) || 0
       const method = (order.payment_method || '').toLowerCase().trim()
+      if (method !== 'unpaid') {
+        const amount = Number(order.total_amount) || 0
+        const vat = Number(order.vat_amount) || 0
 
-      total_revenue += amount
-      vat_collected += vat
+        total_revenue += amount
+        vat_collected += vat
 
-      if (method === 'cash') {
-        cash_sales += amount
-      } else if (method === 'visa' || method === 'card' || method === 'mastercard') {
-        visa_sales += amount
+        if (method === 'cash') {
+          cash_sales += amount
+        } else if (method === 'visa' || method === 'card' || method === 'mastercard') {
+          visa_sales += amount
+        }
       }
     })
 
-    const total_expenses = expenses.reduce((sum, e) => sum + (Number(e.amount) || 0), 0)
+    // قراءة تكلفة المصروفات من حقل cost الصحيح
+    const total_expenses = expenses.reduce((sum, e) => sum + (Number(e.cost) || 0), 0)
     const salaries_paid = salaries.reduce((sum, s) => sum + (Number(s.amount) || 0), 0)
 
-    // حساب صافي الربح: (إجمالي المبيعات - ضريبة القيمة المضافة) - المصروفات - الرواتب المدفوعة فعلياً
-    const net_profit = (total_revenue - vat_collected) - total_expenses - salaries_paid
+    const net_profit = total_revenue - total_expenses - salaries_paid
 
     return {
       total_revenue,
