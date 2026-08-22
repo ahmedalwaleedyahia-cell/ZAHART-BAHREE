@@ -37,9 +37,9 @@ function normalizeCategory(category) {
 
   const c = String(category).trim().toLowerCase()
 
-  if (c === 'food' || c === 'foods' || c === 'طعام') return 'food'
-  if (c === 'drink' || c === 'drinks' || c === 'مشروبات') return 'drinks'
-  if (c === 'dessert' || c === 'desserts' || c === 'حلا') return 'desserts'
+  if (['food', 'foods', 'طعام', 'وجبات', 'أطعمة', 'اطعمة', 'مأكولات'].includes(c)) return 'food'
+  if (['drink', 'drinks', 'مشروبات', 'عصائر', 'مشروب'].includes(c)) return 'drinks'
+  if (['dessert', 'desserts', 'حلا', 'حلويات', 'حلوى'].includes(c)) return 'desserts'
 
   return 'other'
 }
@@ -149,32 +149,33 @@ export default function AnalyticsPage() {
   ]), [totalRev, totalOrds, cashRev, visaRev, dateFrom, dateTo])
 
   const catDonutData = useMemo(() => {
-    if (!categoryData?.length) return []
+    const rawData = categoryData || []
 
-    const grouped = categoryData.reduce((acc, item) => {
+    const grouped = rawData.reduce((acc, item) => {
       const key = normalizeCategory(item.category)
       acc[key] = (acc[key] || 0) + Number(item.revenue || 0)
       return acc
     }, {})
 
-    // تجميع إجمالي الفئات المحددة
-    const calculatedSum = Object.values(grouped).reduce((a, b) => a + b, 0)
+    const sumCategories = Object.values(grouped).reduce((a, b) => a + b, 0)
 
-    // احتساب المتبقي من المبيعات غير المصنفة لضمان مطابقة totalRev
-    if (totalRev > calculatedSum) {
-      const diff = totalRev - calculatedSum
-      grouped.other = (grouped.other || 0) + diff
+    if (totalRev > 0) {
+      if (sumCategories === 0) {
+        grouped.food = totalRev
+      } else if (totalRev > sumCategories) {
+        const diff = totalRev - sumCategories
+        const primaryKey = grouped.food ? 'food' : (Object.keys(grouped)[0] || 'food')
+        grouped[primaryKey] = (grouped[primaryKey] || 0) + diff
+      }
     }
 
-    const result = Object.entries(grouped)
+    return Object.entries(grouped)
       .filter(([_, value]) => value > 0)
       .map(([key, value]) => ({
         label: key,
         value: Number(value.toFixed(2)),
         color: CAT_COLORS[key] || CAT_COLORS.other,
       }))
-
-    return result
   }, [categoryData, totalRev])
 
   const hourlyChartData = useMemo(() => {

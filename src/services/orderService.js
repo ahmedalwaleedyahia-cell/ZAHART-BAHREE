@@ -307,6 +307,8 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
     .select(`
       line_total,
       quantity,
+      category,
+      category_slug,
       products ( category_slug ),
       orders!inner(status, created_at)
     `)
@@ -322,7 +324,7 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
 
   const agg = {}
     ; (data || []).forEach(item => {
-      const slug = item.products?.category_slug || 'uncategorized'
+      const slug = item.category_slug || item.category || item.products?.category_slug || 'other'
       if (!agg[slug]) {
         agg[slug] = { revenue: 0, qty: 0 }
       }
