@@ -6,7 +6,7 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
 
     const s = settings || {}
     const ts = fmtDateTime(order.created_at || order.time)
-    const items = order.items || []
+    const items = order.items || order.order_items || []
 
     const pm = (order.payment_method || order.payment || '').toLowerCase()
     const paymentMethodDisplay =
@@ -19,22 +19,14 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
             ot === 'delivery' ? 'Delivery / توصيل' : 'Dine-In / محلي'
 
     const subtotal = Number(order.subtotal || 0)
-
-    const discountAmount = Number(
-        order.discount_amount ||
-        order.discount ||
-        0
-    )
-
+    const discountAmount = Number(order.discount_amount || order.discount || 0)
     const discountPercent =
         discountAmount > 0 && subtotal > 0
             ? ((discountAmount / subtotal) * 100).toFixed(0)
             : 0
 
     const vatRate = Number(order.vat_rate ?? s.vat_rate ?? 0)
-
     const taxableAmount = Math.max(0, subtotal - discountAmount)
-
     const calculatedVat =
         vatRate > 0
             ? Number(order.vat_amount ?? (taxableAmount * (vatRate / 100)))
@@ -134,7 +126,7 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
             {items.map((item, index) => {
                 const qty = Number(item.quantity || item.qty || 1)
                 const unitPrice = Number(item.unit_price || item.price || 0)
-                const lineTotal = unitPrice * qty
+                const lineTotal = Number(item.line_total || (unitPrice * qty))
                 const nameAr = item.product_name_ar || item.name_ar
                 const nameEn = item.product_name || item.name
 
@@ -149,7 +141,7 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
                             </span>
                         </div>
 
-                        {nameAr && nameEn && (
+                        {nameAr && nameEn && nameAr !== nameEn && (
                             <div className="r-sub-line" style={{ fontSize: '10px', color: '#444', paddingLeft: '12px' }}>
                                 {nameEn}
                             </div>
@@ -164,7 +156,6 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
 
             <div className="r-divider" />
 
-            {/* --- إظهار ملاحظات الطلب والتعليقات --- */}
             {order.notes && (
                 <>
                     <div style={{ marginTop: '4px', marginBottom: '6px', fontSize: '11px', border: '1px dashed #000', padding: '4px 6px', borderRadius: '4px' }}>

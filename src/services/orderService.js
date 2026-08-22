@@ -8,7 +8,7 @@ const formatUtcRange = (dateFrom, dateTo) => {
 }
 
 // ============================================================
-// CREATE ORDER (تحديث شامل مع إرجاع العناصر المحفوظة)
+// CREATE ORDER
 // ============================================================
 export async function createOrder(orderData, items) {
   const { data: { user } } = await supabase.auth.getUser()
@@ -40,22 +40,20 @@ export async function createOrder(orderData, items) {
 
   let insertedItems = []
 
-  // ب. حفظ عناصر السلة بداخل جدول order_items وحل مشكلة مسميات المنتجات
+  // ب. حفظ عناصر السلة بداخل جدول order_items
   if (items && items.length > 0) {
     const itemsToInsert = items.map(item => {
-      const name = item.product_name || item.name || item.product_name_ar || item.name_ar || 'منتج'
-      const nameAr = item.product_name_ar || item.name_ar || name
       const price = Number(item.unit_price || item.price || 0)
       const qty = Number(item.quantity || item.qty || 1)
 
       return {
         order_id: order.id,
         product_id: item.product_id || item.id,
-        product_name: name,
-        product_name_ar: nameAr,
+        product_name: item.product_name || item.name || 'Item',
+        product_name_ar: item.product_name_ar || item.name_ar || null,
         unit_price: price,
         quantity: qty,
-        line_total: item.line_total || (price * qty),
+        line_total: Number(item.line_total || (price * qty)),
         category: item.category || 'food'
       }
     })
@@ -72,7 +70,6 @@ export async function createOrder(orderData, items) {
     }
   }
 
-  // دمج الأصناف مع الطلب المرجوع للعمل مباشرة مع الطباعة والواجهة
   const fullOrder = {
     ...order,
     items: insertedItems.length > 0 ? insertedItems : items,
@@ -83,9 +80,8 @@ export async function createOrder(orderData, items) {
 }
 
 // ============================================================
-// FETCH ORDERS (جلب الشحنة مع عناصر order_items بشكل صريح)
+// FETCH ORDERS
 // ============================================================
-
 export async function fetchOrders({
   limit = null,
   offset = 0,
@@ -122,7 +118,6 @@ export async function fetchOrders({
 // ============================================================
 // FETCH SINGLE ORDER
 // ============================================================
-
 export async function fetchOrder(id) {
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
@@ -137,7 +132,6 @@ export async function fetchOrder(id) {
 // ============================================================
 // UPDATE ORDER STATUS
 // ============================================================
-
 export async function updateOrderStatus(id, status) {
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
@@ -151,9 +145,8 @@ export async function updateOrderStatus(id, status) {
 }
 
 // ============================================================
-// DELETE ORDER (PERMANENT)
+// DELETE ORDER
 // ============================================================
-
 export async function deleteOrder(id) {
   await supabase
     .from(TABLES.ORDER_ITEMS)
@@ -172,7 +165,6 @@ export async function deleteOrder(id) {
 // ============================================================
 // DAILY SALES
 // ============================================================
-
 export async function fetchDailySales(days = 7, { dateFrom = null, dateTo = null } = {}) {
   let query = supabase.from(VIEWS.DAILY_SALES).select('*')
 
@@ -193,7 +185,6 @@ export async function fetchDailySales(days = 7, { dateFrom = null, dateTo = null
 // ============================================================
 // TODAY SUMMARY
 // ============================================================
-
 export async function fetchTodaySummary({ dateFrom = null, dateTo = null } = {}) {
   const { fromIso, toIso } = formatUtcRange(
     dateFrom || new Date().toISOString().split('T')[0],
@@ -227,7 +218,6 @@ export async function fetchTodaySummary({ dateFrom = null, dateTo = null } = {})
 // ============================================================
 // YEAR SUMMARY
 // ============================================================
-
 export async function fetchYearSummary({ dateFrom = null, dateTo = null } = {}) {
   const now = new Date()
   const yearStart = dateFrom ? dateFrom : `${now.getFullYear()}-01-01`
@@ -264,7 +254,6 @@ export async function fetchYearSummary({ dateFrom = null, dateTo = null } = {}) 
 // ============================================================
 // BEST SELLERS
 // ============================================================
-
 export async function fetchBestSellers(limit = 5, { dateFrom = null, dateTo = null } = {}) {
   if (dateFrom && dateTo) {
     const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
@@ -302,7 +291,6 @@ export async function fetchBestSellers(limit = 5, { dateFrom = null, dateTo = nu
 // ============================================================
 // HOURLY SALES
 // ============================================================
-
 export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) {
   let query = supabase
     .from(TABLES.ORDERS)
@@ -341,9 +329,8 @@ export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) 
 }
 
 // ============================================================
-// CATEGORY REVENUE BREAKDOWN 
+// CATEGORY REVENUE BREAKDOWN
 // ============================================================
-
 export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } = {}) {
   let orderQuery = supabase
     .from(TABLES.ORDERS)
@@ -402,7 +389,6 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
 // ============================================================
 // REALTIME SUBSCRIPTION
 // ============================================================
-
 export function subscribeToOrders({ onInsert, onUpdate } = {}) {
   const channelName = `orders-changes-${Date.now()}`
 
