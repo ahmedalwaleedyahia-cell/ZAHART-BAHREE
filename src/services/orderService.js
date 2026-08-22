@@ -1,6 +1,6 @@
 import { supabase, TABLES, VIEWS } from '../supabase/supabase.js'
 
-// مساعد لضبط تواريخ UTC لضمان استعلامات دقيقة
+// مساعد لضبط تواريخ UTC لضمان استعلامات دقيقة بدون أخطاء الترميز (400 Bad Request)
 const formatUtcRange = (dateFrom, dateTo) => {
   const fromIso = dateFrom ? `${dateFrom}T00:00:00.000Z` : null
   const toIso = dateTo ? `${dateTo}T23:59:59.999Z` : null
@@ -110,13 +110,11 @@ export async function updateOrderStatus(id, status) {
 // ============================================================
 
 export async function deleteOrder(id) {
-  // 1. حذف عناصر الطلب أولاً لفك الارتباط
   await supabase
     .from(TABLES.ORDER_ITEMS)
     .delete()
     .eq('order_id', id)
 
-  // 2. حذف الطلب نفسه من الجدول الرئيسي
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
     .delete()
@@ -302,35 +300,40 @@ export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) 
 // ============================================================
 
 export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } = {}) {
-  let query = supabase
+  // تصفية الطلبات المكتملة أولاً لتفادي العلاقات المزدوجة التي تسبب خطأ 400
+  let orderQuery = supabase
+    .from(TABLES.ORDERS)
+    .select('id')
+    .eq('status', 'completed')
+
+  const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
+  if (fromIso && toIso) {
+    orderQuery = orderQuery.gte('created_at', fromIso).lte('created_at', toIso)
+  }
+
+  const { data: validOrders, error: orderErr } = await orderQuery
+  if (orderErr || !validOrders?.length) return { data: [], error: orderErr?.message || null }
+
+  const orderIds = validOrders.map(o => o.id)
+
+  const { data, error } = await supabase
     .from(TABLES.ORDER_ITEMS)
     .select(`
       line_total,
       quantity,
       product_name,
       category,
-      category_slug,
-      products ( category_slug, category ),
-      orders!inner(status, created_at)
+      category_slug
     `)
-    .eq('orders.status', 'completed')
+    .in('order_id', orderIds)
 
-  const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
-  if (fromIso && toIso) {
-    query = query.gte('orders.created_at', fromIso).lte('orders.created_at', toIso)
-  }
-
-  const { data, error } = await query
   if (error) return { data: [], error: error.message }
 
   const agg = {}
     ; (data || []).forEach(item => {
-      // جلب التصنيف بالترتيب المتاح مع التحقق من اسم المنتج
       const rawCategory =
         item.category_slug ||
         item.category ||
-        item.products?.category_slug ||
-        item.products?.category ||
         item.product_name ||
         'other'
 
