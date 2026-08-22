@@ -82,6 +82,9 @@ export async function createOrder(orderData, items) {
 // ============================================================
 // FETCH ORDERS
 // ============================================================
+// ============================================================
+// FETCH ORDERS (معدلة بدون تكرار العلاقات لمنع خطأ 400)
+// ============================================================
 export async function fetchOrders({
   limit = null,
   offset = 0,
@@ -94,7 +97,7 @@ export async function fetchOrders({
     .from(TABLES.ORDERS)
     .select(`
       *,
-      items:${TABLES.ORDER_ITEMS}(*)
+      order_items(*)
     `)
     .order('created_at', { ascending: false })
 
@@ -112,7 +115,17 @@ export async function fetchOrders({
   const { data, error } = await query
   if (error) return { data: [], error: error.message }
 
-  return { data, error: null }
+  // دمج مصفوفات الأصناف تحت المسميين items و order_items في الذاكرة لتفادي أي استثناءات
+  const normalizedData = (data || []).map(order => {
+    const rawItems = order.order_items || order.items || []
+    return {
+      ...order,
+      items: rawItems,
+      order_items: rawItems
+    }
+  })
+
+  return { data: normalizedData, error: null }
 }
 
 // ============================================================
@@ -121,12 +134,23 @@ export async function fetchOrders({
 export async function fetchOrder(id) {
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
-    .select(`*, items:${TABLES.ORDER_ITEMS}(*)`)
+    .select(`
+      *,
+      order_items(*)
+    `)
     .eq('id', id)
     .single()
 
   if (error) return { data: null, error: error.message }
-  return { data, error: null }
+
+  const rawItems = data?.order_items || data?.items || []
+  const normalizedOrder = {
+    ...data,
+    items: rawItems,
+    order_items: rawItems
+  }
+
+  return { data: normalizedOrder, error: null }
 }
 
 // ============================================================
