@@ -37,26 +37,28 @@ function normalizeCategory(category) {
 
   const c = String(category).trim().toLowerCase()
 
-  // 1. المطابقة المباشرة للـ Slug من الـ Seed Data
-  if (c === 'drinks' || c === 'desserts' || c === 'food') {
-    return c
-  }
-
-  // 2. مطابقة المشروبات
+  // 1. مطابقة المشروبات
   if (
     ['drink', 'drinks', 'مشروبات', 'عصائر', 'مشروب', 'قهوة', 'coffee', 'tea', 'شاي', 'juice', 'mojito', 'موهيتو', 'لاتيه', 'latte', 'كابتشينو', 'espresso', 'اسبريسو', 'water', 'مياه', 'بيبسي', 'pepsi', 'سفن', 'karak', 'كرك', 'lassi'].some(term => c.includes(term))
   ) {
     return 'drinks'
   }
 
-  // 3. مطابقة الحلويات
+  // 2. مطابقة الحلويات
   if (
     ['dessert', 'desserts', 'حلا', 'حلويات', 'حلوى', 'cake', 'كيك', 'waffle', 'وافل', 'pancake', 'بانكيك', 'ice cream', 'آيس كريم', 'ايس كريم', 'donuts', 'دونات', 'بسبوسة', 'كنافة', 'luqaimat', 'لقيمات', 'kunafa', 'umm ali', 'أم علي', 'baklava', 'بقلاوة', 'qatayef', 'قطايف', 'muhallabia', 'محلبية'].some(term => c.includes(term))
   ) {
     return 'desserts'
   }
 
-  // 4. الافتراضي المباشر للمأكولات والأطعمة
+  // 3. مطابقة المأكولات والأطعمة (بما فيها كافة المرادفات)
+  if (
+    ['food', 'foods', 'أطعمة', 'اطعمة', 'طعام', 'مأكولات', 'ماكولات', 'وجبة', 'وجبات', 'أطباق', 'اطباق', 'مشويات', 'أسماك', 'اسماك', 'ساندوتش', 'شاورما', 'برجر', 'مقبلات', 'فطور', 'غداء', 'عشاء'].some(term => c.includes(term))
+  ) {
+    return 'food'
+  }
+
+  // 4. الافتراضي الشامل في حال عدم المطابقة
   return 'food'
 }
 
