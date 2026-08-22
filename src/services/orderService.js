@@ -8,11 +8,12 @@ const formatUtcRange = (dateFrom, dateTo) => {
 }
 
 // ============================================================
-// CREATE ORDER
+// CREATE ORDER (تحديث جذر لحفظ عناصر الفاتورة بالكامل)
 // ============================================================
-export async function createOrder(orderData, items) {
+export async function createOrder(orderData, items = []) {
   const { data: { user } } = await supabase.auth.getUser()
 
+  // 1. إنشاء الطلب في جدول orders
   const { data: order, error: orderError } = await supabase
     .from(TABLES.ORDERS)
     .insert({
@@ -37,7 +38,29 @@ export async function createOrder(orderData, items) {
 
   if (orderError) return { data: null, error: orderError.message }
 
-  return { data: order, error: null }
+  // 2. إدخال أصناف الطلب في جدول order_items لظهور الأرقام والأسماء وإمكانية التعديل
+  if (items && items.length > 0) {
+    const formattedItems = items.map(item => ({
+      order_id: order.id,
+      product_id: item.product_id || item.id || null,
+      product_name: item.product_name || item.name || item.product_name_ar || item.name_ar || 'منتج بدون اسم',
+      unit_price: Number(item.unit_price || item.price || 0),
+      quantity: Number(item.quantity || item.qty || 1),
+      line_total: Number(item.unit_price || item.price || 0) * Number(item.quantity || item.qty || 1),
+      category: item.category || item.category_slug || 'food',
+    }))
+
+    const { error: itemsError } = await supabase
+      .from(TABLES.ORDER_ITEMS)
+      .insert(formattedItems)
+
+    if (itemsError) {
+      console.error('Error inserting order items:', itemsError.message)
+    }
+  }
+
+  // إعادة جلب الفاتورة كاملة مع الأصناف المرفقة
+  return fetchOrder(order.id)
 }
 
 // ============================================================
