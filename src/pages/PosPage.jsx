@@ -103,9 +103,9 @@ body * {
         setSuccessModal(true)
     }
 
-    const handleImageError = (productId) => {
+    const handleImageError = useCallback((productId) => {
         setFailedImages(prev => ({ ...prev, [productId]: true }))
-    }
+    }, [])
 
     return (
         <div className="pos-layout">
