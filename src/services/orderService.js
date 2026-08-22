@@ -355,16 +355,13 @@ export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) 
 // ============================================================
 // CATEGORY REVENUE BREAKDOWN (تم إزالة category_slug لمنع خطأ 400)
 // ============================================================
+// ============================================================
+// CATEGORY REVENUE BREAKDOWN (آمن وبدون أخطاء 400)
+// ============================================================
 export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } = {}) {
   let query = supabase
     .from(TABLES.ORDER_ITEMS)
-    .select(`
-      line_total,
-      quantity,
-      product_name,
-      category,
-      created_at
-    `)
+    .select('line_total, quantity, created_at, category')
 
   const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
   if (fromIso) query = query.gte('created_at', fromIso)
@@ -372,7 +369,10 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
 
   const { data, error } = await query
 
-  if (error) return { data: [], error: error.message }
+  if (error) {
+    console.error('Category breakdown error:', error)
+    return { data: [], error: error.message }
+  }
 
   const agg = {}
     ; (data || []).forEach(item => {
