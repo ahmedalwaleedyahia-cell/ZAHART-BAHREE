@@ -37,9 +37,26 @@ function normalizeCategory(category) {
 
   const c = String(category).trim().toLowerCase()
 
-  if (['food', 'foods', 'طعام', 'وجبات', 'أطعمة', 'اطعمة', 'مأكولات'].includes(c)) return 'food'
-  if (['drink', 'drinks', 'مشروبات', 'عصائر', 'مشروب'].includes(c)) return 'drinks'
-  if (['dessert', 'desserts', 'حلا', 'حلويات', 'حلوى'].includes(c)) return 'desserts'
+  // فحص المشروبات والعصائر والقهوة
+  if (
+    ['drink', 'drinks', 'مشروبات', 'عصائر', 'مشروب', 'قهوة', 'coffee', 'tea', 'شاي', 'juice', 'mojito', 'موهيتو', 'لاتيه', 'latte', 'كابتشينو', 'espresso', 'اسبريسو'].some(term => c.includes(term))
+  ) {
+    return 'drinks'
+  }
+
+  // فحص الحلويات
+  if (
+    ['dessert', 'desserts', 'حلا', 'حلويات', 'حلوى', 'cake', 'كيك', 'waffle', 'وافل', 'pancake', 'بانكيك', 'ice cream', 'آيس كريم', 'ايس كريم', 'donuts', 'دونات'].some(term => c.includes(term))
+  ) {
+    return 'desserts'
+  }
+
+  // فحص المأكولات والأطعمة
+  if (
+    ['food', 'foods', 'طعام', 'وجبات', 'أطعمة', 'اطعمة', 'مأكولات', 'burger', 'برجر', 'pizza', 'بيتزا', 'sandwich', 'سندويش', 'ساندويتش', 'fries', 'بطاطس', 'pasta', 'باستا', 'شاورما'].some(term => c.includes(term))
+  ) {
+    return 'food'
+  }
 
   return 'other'
 }
@@ -157,18 +174,7 @@ export default function AnalyticsPage() {
       return acc
     }, {})
 
-    const sumCategories = Object.values(grouped).reduce((a, b) => a + b, 0)
-
-    if (totalRev > 0) {
-      if (sumCategories === 0) {
-        grouped.food = totalRev
-      } else if (totalRev > sumCategories) {
-        const diff = totalRev - sumCategories
-        const primaryKey = grouped.food ? 'food' : (Object.keys(grouped)[0] || 'food')
-        grouped[primaryKey] = (grouped[primaryKey] || 0) + diff
-      }
-    }
-
+    // توزيع الدونات المباشر بناءً على البيانات الحقيقية
     return Object.entries(grouped)
       .filter(([_, value]) => value > 0)
       .map(([key, value]) => ({
@@ -176,7 +182,7 @@ export default function AnalyticsPage() {
         value: Number(value.toFixed(2)),
         color: CAT_COLORS[key] || CAT_COLORS.other,
       }))
-  }, [categoryData, totalRev])
+  }, [categoryData])
 
   const hourlyChartData = useMemo(() => {
     const customHourOrder = [

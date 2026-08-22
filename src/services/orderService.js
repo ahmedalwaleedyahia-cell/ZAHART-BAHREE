@@ -307,9 +307,10 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
     .select(`
       line_total,
       quantity,
+      product_name,
       category,
       category_slug,
-      products ( category_slug ),
+      products ( category_slug, category ),
       orders!inner(status, created_at)
     `)
     .eq('orders.status', 'completed')
@@ -324,12 +325,20 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
 
   const agg = {}
     ; (data || []).forEach(item => {
-      const slug = item.category_slug || item.category || item.products?.category_slug || 'other'
-      if (!agg[slug]) {
-        agg[slug] = { revenue: 0, qty: 0 }
+      // جلب التصنيف بالترتيب المتاح مع التحقق من اسم المنتج
+      const rawCategory =
+        item.category_slug ||
+        item.category ||
+        item.products?.category_slug ||
+        item.products?.category ||
+        item.product_name ||
+        'other'
+
+      if (!agg[rawCategory]) {
+        agg[rawCategory] = { revenue: 0, qty: 0 }
       }
-      agg[slug].revenue += Number(item.line_total || 0)
-      agg[slug].qty += Number(item.quantity || 0)
+      agg[rawCategory].revenue += Number(item.line_total || 0)
+      agg[rawCategory].qty += Number(item.quantity || 0)
     })
 
   return {
