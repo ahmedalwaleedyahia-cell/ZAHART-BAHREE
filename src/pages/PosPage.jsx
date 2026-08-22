@@ -1,7 +1,7 @@
 ﻿import { useProducts } from '../context/ProductsContext'
 import { useOrders } from '../context/OrdersContext'
 import { useSettings } from '../context/SettingsContext'
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useCallback } from 'react'
 import { fmtNum } from '../utils/format.js'
 import Modal from '../components/ui/Modal'
 import ReceiptPreview from '../components/ui/ReceiptPreview.jsx'
