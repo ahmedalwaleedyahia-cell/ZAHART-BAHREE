@@ -33,32 +33,31 @@ function safeCall(fn, ...args) {
 }
 
 function normalizeCategory(category) {
-  if (!category) return 'other'
+  if (!category) return 'food'
 
   const c = String(category).trim().toLowerCase()
 
-  // فحص المشروبات والعصائر والقهوة
+  // 1. المطابقة المباشرة للـ Slug من الـ Seed Data
+  if (c === 'drinks' || c === 'desserts' || c === 'food') {
+    return c
+  }
+
+  // 2. مطابقة المشروبات
   if (
-    ['drink', 'drinks', 'مشروبات', 'عصائر', 'مشروب', 'قهوة', 'coffee', 'tea', 'شاي', 'juice', 'mojito', 'موهيتو', 'لاتيه', 'latte', 'كابتشينو', 'espresso', 'اسبريسو'].some(term => c.includes(term))
+    ['drink', 'drinks', 'مشروبات', 'عصائر', 'مشروب', 'قهوة', 'coffee', 'tea', 'شاي', 'juice', 'mojito', 'موهيتو', 'لاتيه', 'latte', 'كابتشينو', 'espresso', 'اسبريسو', 'water', 'مياه', 'بيبسي', 'pepsi', 'سفن', 'karak', 'كرك', 'lassi'].some(term => c.includes(term))
   ) {
     return 'drinks'
   }
 
-  // فحص الحلويات
+  // 3. مطابقة الحلويات
   if (
-    ['dessert', 'desserts', 'حلا', 'حلويات', 'حلوى', 'cake', 'كيك', 'waffle', 'وافل', 'pancake', 'بانكيك', 'ice cream', 'آيس كريم', 'ايس كريم', 'donuts', 'دونات'].some(term => c.includes(term))
+    ['dessert', 'desserts', 'حلا', 'حلويات', 'حلوى', 'cake', 'كيك', 'waffle', 'وافل', 'pancake', 'بانكيك', 'ice cream', 'آيس كريم', 'ايس كريم', 'donuts', 'دونات', 'بسبوسة', 'كنافة', 'luqaimat', 'لقيمات', 'kunafa', 'umm ali', 'أم علي', 'baklava', 'بقلاوة', 'qatayef', 'قطايف', 'muhallabia', 'محلبية'].some(term => c.includes(term))
   ) {
     return 'desserts'
   }
 
-  // فحص المأكولات والأطعمة
-  if (
-    ['food', 'foods', 'طعام', 'وجبات', 'أطعمة', 'اطعمة', 'مأكولات', 'burger', 'برجر', 'pizza', 'بيتزا', 'sandwich', 'سندويش', 'ساندويتش', 'fries', 'بطاطس', 'pasta', 'باستا', 'شاورما'].some(term => c.includes(term))
-  ) {
-    return 'food'
-  }
-
-  return 'other'
+  // 4. الافتراضي المباشر للمأكولات والأطعمة
+  return 'food'
 }
 
 export default function AnalyticsPage() {
@@ -174,7 +173,6 @@ export default function AnalyticsPage() {
       return acc
     }, {})
 
-    // توزيع الدونات المباشر بناءً على البيانات الحقيقية
     return Object.entries(grouped)
       .filter(([_, value]) => value > 0)
       .map(([key, value]) => ({

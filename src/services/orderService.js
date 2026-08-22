@@ -1,6 +1,6 @@
 import { supabase, TABLES, VIEWS } from '../supabase/supabase.js'
 
-// مساعد لضبط تواريخ UTC لضمان استعلامات دقيقة بدون أخطاء الترميز (400 Bad Request)
+// مساعد لضبط تواريخ UTC لضمان استعلامات دقيقة
 const formatUtcRange = (dateFrom, dateTo) => {
   const fromIso = dateFrom ? `${dateFrom}T00:00:00.000Z` : null
   const toIso = dateTo ? `${dateTo}T23:59:59.999Z` : null
@@ -300,7 +300,6 @@ export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) 
 // ============================================================
 
 export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } = {}) {
-  // تصفية الطلبات المكتملة أولاً لتفادي العلاقات المزدوجة التي تسبب خطأ 400
   let orderQuery = supabase
     .from(TABLES.ORDERS)
     .select('id')
@@ -323,7 +322,8 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
       quantity,
       product_name,
       category,
-      category_slug
+      category_slug,
+      products ( category_slug )
     `)
     .in('order_id', orderIds)
 
@@ -333,9 +333,10 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
     ; (data || []).forEach(item => {
       const rawCategory =
         item.category_slug ||
+        item.products?.category_slug ||
         item.category ||
         item.product_name ||
-        'other'
+        'food'
 
       if (!agg[rawCategory]) {
         agg[rawCategory] = { revenue: 0, qty: 0 }
