@@ -120,9 +120,6 @@ export function OrdersProvider({ children }) {
 
     setProcessing(true)
 
-    // ================= ================= =================
-    // توليد رقم الفاتورة اليومي المتسلسل (يبدأ من 1 كل يوم)
-    // ================= ================= =================
     const generateDailyInvoiceNumber = async () => {
       try {
         const todayStart = new Date()
@@ -170,35 +167,41 @@ export function OrdersProvider({ children }) {
       notes: orderNotes,
     }
 
-    // تصحيح واستخراج اسم المنتج بجميع الحالات المتوقعة لمنع الأسماء الفارغة
-    const items = cart.map(item => ({
-      product_id: item.id,
-      product_name: item.name || item.product_name || item.name_ar || 'منتج بدون اسم',
-      product_name_ar: item.name_ar || item.product_name_ar || null,
-      product_emoji: item.emoji || '🍽️',
-      unit_price: item.price,
-      quantity: item.qty,
-    }))
+    // تجهيز الأصناف بجميع مسمياتها لضمان التخزين السليم بجميع قواعد البيانات
+    const itemsPayload = cart.map(item => {
+      const mainName = item.name_ar || item.name || item.product_name || 'منتج بدون اسم'
+      return {
+        product_id: item.id,
+        name: mainName,
+        product_name: mainName,
+        product_name_ar: item.name_ar || null,
+        product_emoji: item.emoji || '🍽️',
+        unit_price: Number(item.price),
+        price: Number(item.price),
+        quantity: Number(item.qty),
+        qty: Number(item.qty),
+        line_total: Number(item.price) * Number(item.qty)
+      }
+    })
 
-    const { data, error } = await createOrder(orderData, items)
+    const { data, error } = await createOrder(orderData, itemsPayload)
     setProcessing(false)
 
     if (error) return { error }
 
-    setLastOrder({
+    const completedOrder = {
       ...data,
-      items: cart.map(c => ({
-        product_id: c.id,
-        product_name: c.name || c.product_name || 'منتج بدون اسم',
-        product_name_ar: c.name_ar || c.product_name_ar || null,
-        unit_price: Number(c.price),
-        quantity: Number(c.qty),
-        line_total: Number(c.price) * Number(c.qty),
-        product_emoji: c.emoji || '🍽️'
-      }))
-    })
+      items: itemsPayload,
+      order_items: itemsPayload
+    }
+
+    setLastOrder(completedOrder)
+
+    // إضافتها فوراً لجدول الطلبات بدلاً من الانتظار
+    setOrders(prev => [completedOrder, ...prev.filter(o => o.id !== completedOrder.id)])
+
     clearCart()
-    return { data, error: null }
+    return { data: completedOrder, error: null }
   }, [cart, processing, paymentMethod, orderType, cashGiven, totalAmount, subtotal, discountPct, discountAmount, dynamicVatRate, vatAmount, changeAmount, orderNotes, profile, clearCart])
 
   const updateOrderStatus = useCallback(async (id, status) => {
@@ -294,7 +297,11 @@ export function OrdersProvider({ children }) {
 
       if (orderError) throw orderError
 
-      const fullUpdatedOrder = { ...updatedOrder, items: formattedItems }
+      const fullUpdatedOrder = {
+        ...updatedOrder,
+        items: formattedItems,
+        order_items: formattedItems
+      }
 
       setOrders(prev => prev.map(o => o.id === orderId ? fullUpdatedOrder : o))
       if (lastOrder && lastOrder.id === orderId) {
