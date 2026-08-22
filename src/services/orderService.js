@@ -355,23 +355,11 @@ export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) 
 // ============================================================
 // CATEGORY REVENUE BREAKDOWN
 // ============================================================
+// ============================================================
+// CATEGORY REVENUE BREAKDOWN (تصحيح الاستعلام المباشر لمنع خطأ 400)
+// ============================================================
 export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } = {}) {
-  let orderQuery = supabase
-    .from(TABLES.ORDERS)
-    .select('id')
-    .eq('status', 'completed')
-
-  const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
-  if (fromIso && toIso) {
-    orderQuery = orderQuery.gte('created_at', fromIso).lte('created_at', toIso)
-  }
-
-  const { data: validOrders, error: orderErr } = await orderQuery
-  if (orderErr || !validOrders?.length) return { data: [], error: orderErr?.message || null }
-
-  const orderIds = validOrders.map(o => o.id)
-
-  const { data, error } = await supabase
+  let query = supabase
     .from(TABLES.ORDER_ITEMS)
     .select(`
       line_total,
@@ -379,9 +367,15 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
       product_name,
       category,
       category_slug,
-      products ( category_slug )
+      created_at
     `)
-    .in('order_id', orderIds)
+
+  // تصفية التاريخ بشكل مباشر لمنع تحميل قائمة UUIDs ضخمة في الرابط
+  const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
+  if (fromIso) query = query.gte('created_at', fromIso)
+  if (toIso) query = query.lte('created_at', toIso)
+
+  const { data, error } = await query
 
   if (error) return { data: [], error: error.message }
 
@@ -389,9 +383,7 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
     ; (data || []).forEach(item => {
       const rawCategory =
         item.category_slug ||
-        item.products?.category_slug ||
         item.category ||
-        item.product_name ||
         'food'
 
       if (!agg[rawCategory]) {
