@@ -157,13 +157,14 @@ export default function AnalyticsPage() {
       return acc
     }, {})
 
-    const result = Object.entries(grouped).map(([key, value]) => ({
-      label: key,
-      value,
-      color: CAT_COLORS[key] || CAT_COLORS.other,
-    }))
+    const result = Object.entries(grouped)
+      .filter(([_, value]) => value > 0)
+      .map(([key, value]) => ({
+        label: key,
+        value: Number(value.toFixed(2)),
+        color: CAT_COLORS[key] || CAT_COLORS.other,
+      }))
 
-    if (result.every(r => r.value === 0)) return []
     return result
   }, [categoryData])
 

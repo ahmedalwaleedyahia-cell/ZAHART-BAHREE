@@ -10,17 +10,19 @@ import Modal from '../components/ui/Modal.jsx'
 import Empty from '../components/ui/Empty.jsx'
 import ReceiptPreview from '../components/ui/ReceiptPreview.jsx'
 import KitchenReceipt from '../components/ui/KitchenReceipt.jsx'
-import { ClipboardList, Printer, Search, Utensils, Pencil } from 'lucide-react'
+import { ClipboardList, Printer, Search, Utensils, Pencil, Trash2 } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 
 export default function OrdersPage({ showToast }) {
-  const { orders, loading, updateOrderStatus, updatePaymentMethod, fetchOrders } = useOrders()
+  const { orders, loading, deleteOrder, updatePaymentMethod, reload } = useOrders()
   const { products } = useProducts()
   const { isAdmin } = useAuth()
   const { settings } = useSettings()
-  
+
   const [receiptOrder, setReceiptOrder] = useState(null)
   const [editingOrder, setEditingOrder] = useState(null)
+  const [deletingOrder, setDeletingOrder] = useState(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [search, setSearch] = useState('')
 
   const printContainerRef = useRef(null)
@@ -58,26 +60,31 @@ body * {
 `
   })
 
-  async function handleCancel(id) {
-    if (!confirm('Cancel this order?')) return
-    const { error } = await updateOrderStatus(id, 'cancelled')
-    if (error) {
-      showToast(error, 'error')
+  async function confirmDeleteOrder() {
+    if (!deletingOrder) return
+    setIsDeleting(true)
+    const { success, error } = await deleteOrder(deletingOrder.id)
+    setIsDeleting(false)
+
+    if (success) {
+      showToast?.('تم حذف الطلب بنجاح من قاعدة البيانات', 'info')
+      setDeletingOrder(null)
     } else {
-      showToast('Order cancelled', 'info')
+      showToast?.(error || 'فشل حذف الطلب', 'error')
     }
   }
 
   async function handlePaymentChange(orderId, newMethod) {
     const { error } = await updatePaymentMethod(orderId, newMethod)
     if (error) {
-      showToast(error, 'error')
+      showToast?.(error, 'error')
     } else {
-      showToast(`Payment method updated to ${newMethod.toUpperCase()}`, 'success')
+      showToast?.(`تم تحديث طريقة الدفع إلى ${newMethod.toUpperCase()}`, 'success')
     }
   }
 
   const filteredOrders = useMemo(() => {
+    if (!orders || !Array.isArray(orders)) return []
     if (!search.trim()) return orders
     const q = search.toLowerCase()
     return orders.filter(o => {
@@ -158,11 +165,15 @@ body * {
                       >
                         <td>
                           <span className="order-num">
-                            INV-{String(o.invoice_number || o.order_number).padStart(5, '0')}
+                            INV-{String(o.invoice_number || o.order_number || 0).padStart(5, '0')}
                           </span>
                         </td>
+      
                         <td className="items-cell">
-                          {o.items?.slice(0, 2).map(i => `${i.quantity}× ${i.product_name}`).join(', ')}
+                          {o.items?.slice(0, 2).map(i => {
+                            const name = i.product_name_ar || i.product_name || i.name_ar || i.name || 'صنف غير محدد'
+                            return `${i.quantity}× ${name}`
+                          }).join(', ')}
                           {(o.items?.length || 0) > 2 && ` +${o.items.length - 2}`}
                         </td>
                         <td style={{ fontSize: 12.5 }}>{o.cashier_name}</td>
@@ -189,15 +200,16 @@ body * {
                         </td>
                         <td className="time-cell">{fmtDateTime(o.created_at)}</td>
                         <td><strong>AED {fmtNum(o.total_amount)}</strong></td>
-                        <td className="action-cell" style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'flex-end' }}>
+                        <td className="action-cell" style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end' }}>
                           <button
                             className="btn btn-ghost btn-sm"
                             onClick={() => setReceiptOrder(o)}
                             title="View receipt"
+                            style={{ color: 'var(--gold, #eab308)' }}
                           >
-                            <Printer size={13} strokeWidth={2} />
+                            <Printer size={14} strokeWidth={2} />
                           </button>
-                          
+
                           {o.status !== 'cancelled' && (
                             <button
                               className="btn btn-ghost btn-sm"
@@ -205,17 +217,26 @@ body * {
                               title="Edit order items"
                               style={{ color: 'var(--gold, #eab308)' }}
                             >
-                              <Pencil size={13} strokeWidth={2} />
+                              <Pencil size={14} strokeWidth={2} />
                             </button>
                           )}
 
-                          {isAdmin && o.status === 'completed' && (
+                          {isAdmin && (
                             <button
-                              className="btn btn-danger btn-sm"
-                              onClick={() => handleCancel(o.id)}
-                              title="Cancel order"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setDeletingOrder(o)}
+                              title="Delete Order Permanently"
+                              style={{
+                                color: '#ef4444',
+                                width: '30px',
+                                height: '30px',
+                                padding: 0,
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
                             >
-                              ✕
+                              <Trash2 size={14} strokeWidth={2} />
                             </button>
                           )}
                         </td>
@@ -227,6 +248,103 @@ body * {
             </div>
           )
       }
+
+      {/* --- نافذة تأكيد حذف الطلب المصححة --- */}
+      {deletingOrder && (
+        <Modal onClose={() => setDeletingOrder(null)}>
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            padding: '10px 10px 5px',
+            fontFamily: 'inherit',
+            direction: 'rtl'
+          }}>
+            {/* الأيقونة الحمراء */}
+            <div style={{
+              width: '54px',
+              height: '54px',
+              borderRadius: '10px',
+              backgroundColor: '#fef2f2',
+              border: '1px solid #fee2e2',
+              color: '#ef4444',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '16px'
+            }}>
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                <line x1="12" y1="2" x2="12" y2="12" />
+              </svg>
+            </div>
+
+            {/* العنوان الرئيسي */}
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '800', color: '#111827' }}>
+              حذف الطلب؟
+            </h3>
+
+            {/* الرسالة الوصفية */}
+            <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 24px 0', lineHeight: '1.6' }}>
+              هل أنت تأكد أنك تريد حذف الطلب <strong style={{ color: '#111827' }}>INV-{String(deletingOrder.invoice_number || deletingOrder.order_number || 0).padStart(5, '0')}</strong> من النظام؟
+            </p>
+
+            {/* أزرار التحكم */}
+            <div style={{ display: 'flex', gap: '12px', width: '100%', justifyContent: 'center' }}>
+              <button
+                type="button"
+                onClick={confirmDeleteOrder}
+                disabled={isDeleting}
+                style={{
+                  flex: 1,
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  border: '1px solid #fecaca',
+                  backgroundColor: '#fef2f2',
+                  color: '#dc2626',
+                  fontSize: '13px',
+                  fontWeight: '700',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                تأكيد الحذف
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                  <line x1="12" y1="2" x2="12" y2="12" />
+                </svg>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeletingOrder(null)}
+                disabled={isDeleting}
+                style={{
+                  flex: 1,
+                  padding: '9px 16px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  color: '#4b5563',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                إلغاء ✕
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {receiptOrder && (
         <Modal onClose={() => setReceiptOrder(null)}>
@@ -270,10 +388,8 @@ body * {
           onClose={() => setEditingOrder(null)}
           showToast={showToast}
           onOrderUpdated={() => {
-            if (typeof fetchOrders === 'function') {
-              fetchOrders()
-            } else {
-              window.location.reload()
+            if (typeof reload === 'function') {
+              reload()
             }
           }}
         />

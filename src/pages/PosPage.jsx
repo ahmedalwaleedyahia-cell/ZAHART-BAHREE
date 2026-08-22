@@ -18,6 +18,8 @@ import {
     Layers,
     Utensils,
     Clock,
+    ShoppingBag,
+    Truck
 } from 'lucide-react'
 
 export default function PosPage({ showToast }) {
@@ -25,6 +27,7 @@ export default function PosPage({ showToast }) {
     const {
         cart, addToCart, removeFromCart, updateQty, clearCart,
         paymentMethod, setPaymentMethod,
+        orderType, setOrderType,
         discountPct, setDiscountPct,
         orderNotes, setOrderNotes,
         cashGiven, setCashGiven,
@@ -331,6 +334,7 @@ body * {
                         </div>
                     </div>
 
+                    {/* --- طرق الدفع --- */}
                     <div className="pay-method-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px' }}>
                         <button
                             type="button"
@@ -361,8 +365,39 @@ body * {
                         </button>
                     </div>
 
+                    {/* --- أزرار نوع الطلب (تحت أزرار طرق الدفع مباشرة) --- */}
+                    <div className="pay-method-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '6px' }}>
+                        <button
+                            type="button"
+                            className={`pay-btn ${orderType === 'dine_in' ? 'active' : ''}`}
+                            onClick={() => setOrderType('dine_in')}
+                            style={{ padding: '6px 2px', fontSize: '11px' }}
+                        >
+                            <Utensils size={14} />
+                            <span>Dine-In</span>
+                        </button>
+                        <button
+                            type="button"
+                            className={`pay-btn ${orderType === 'takeaway' ? 'active' : ''}`}
+                            onClick={() => setOrderType('takeaway')}
+                            style={{ padding: '6px 2px', fontSize: '11px' }}
+                        >
+                            <ShoppingBag size={14} />
+                            <span>Takeaway</span>
+                        </button>
+                        <button
+                            type="button"
+                            className={`pay-btn ${orderType === 'delivery' ? 'active' : ''}`}
+                            onClick={() => setOrderType('delivery')}
+                            style={{ padding: '6px 2px', fontSize: '11px' }}
+                        >
+                            <Truck size={14} />
+                            <span>Delivery</span>
+                        </button>
+                    </div>
+
                     {paymentMethod === 'cash' && (
-                        <div>
+                        <div style={{ marginTop: '8px' }}>
                             <input
                                 className="cash-input"
                                 type="number"
@@ -391,6 +426,7 @@ body * {
                         className="charge-btn"
                         onClick={handleCharge}
                         disabled={cart.length === 0 || processing || cashInsufficient}
+                        style={{ marginTop: '8px' }}
                     >
                         {processing ? 'Processing…' : `Charge AED ${fmtNum(totalAmount)}`}
                     </button>

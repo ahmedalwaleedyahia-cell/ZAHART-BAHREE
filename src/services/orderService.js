@@ -1,8 +1,3 @@
-// ============================================================
-// src/services/orderService.js
-// Order operations + realtime + analytics + stock deduction
-// ============================================================
-
 import { supabase, TABLES, VIEWS } from '../supabase/supabase.js'
 
 // مساعد لضبط تواريخ UTC لضمان استعلامات دقيقة
@@ -15,7 +10,6 @@ const formatUtcRange = (dateFrom, dateTo) => {
 // ============================================================
 // CREATE ORDER
 // ============================================================
-
 export async function createOrder(orderData, items) {
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -26,6 +20,7 @@ export async function createOrder(orderData, items) {
       cashier_id: user?.id,
       cashier_name: orderData.cashierName,
       payment_method: orderData.paymentMethod,
+      order_type: orderData.orderType || 'dine_in',
       subtotal: orderData.subtotal,
       discount_pct: orderData.discountPct,
       discount_amount: orderData.discountAmount,
@@ -41,66 +36,6 @@ export async function createOrder(orderData, items) {
     .single()
 
   if (orderError) return { data: null, error: orderError.message }
-
-  const lineItems = items.map(item => ({
-    order_id: order.id,
-    product_id: item.product_id || null,
-    product_name: item.product_name,
-    product_emoji: item.product_emoji || '🍽️',
-    unit_price: item.unit_price,
-    quantity: item.quantity,
-    line_total: Number(item.unit_price) * Number(item.quantity),
-    notes: item.notes || null,
-  }))
-
-  const { error: itemsError } = await supabase
-    .from(TABLES.ORDER_ITEMS)
-    .insert(lineItems)
-
-  if (itemsError) {
-    await supabase.from(TABLES.ORDERS).delete().eq('id', order.id)
-    return { data: null, error: itemsError.message }
-  }
-
-  // ── Automatically Update Inventory Post-Sale ──
-  for (const item of items) {
-    if (!item.product_id) continue
-
-    const { data: product } = await supabase
-      .from(TABLES.PRODUCTS)
-      .select('category_slug, inventory_enabled, current_stock, current_weight, pieces_per_packet')
-      .eq('id', item.product_id)
-      .single()
-
-    if (product && product.inventory_enabled) {
-      if (product.category_slug === 'drinks') {
-        const newStock = Math.max(0, (product.current_stock || 0) - item.quantity)
-        const pieces = product.pieces_per_packet || 1
-        const newPackets = Math.floor(newStock / pieces)
-
-        await supabase
-          .from(TABLES.PRODUCTS)
-          .update({
-            current_stock: newStock,
-            number_of_packets: newPackets
-          })
-          .eq('id', item.product_id)
-      } else if (product.category_slug === 'desserts') {
-        const newWeight = Math.max(0, (product.current_weight || 0) - item.quantity)
-        await supabase
-          .from(TABLES.PRODUCTS)
-          .update({ current_weight: newWeight })
-          .eq('id', item.product_id)
-      } else {
-        // دعم خصم جميع أنواع المنتجات الأخرى
-        const newStock = Math.max(0, (product.current_stock || 0) - item.quantity)
-        await supabase
-          .from(TABLES.PRODUCTS)
-          .update({ current_stock: newStock })
-          .eq('id', item.product_id)
-      }
-    }
-  }
 
   return { data: order, error: null }
 }
@@ -165,6 +100,27 @@ export async function updateOrderStatus(id, status) {
     .eq('id', id)
     .select()
     .single()
+
+  if (error) return { data: null, error: error.message }
+  return { data, error: null }
+}
+
+// ============================================================
+// DELETE ORDER (PERMANENT)
+// ============================================================
+
+export async function deleteOrder(id) {
+  // 1. حذف عناصر الطلب أولاً لفك الارتباط
+  await supabase
+    .from(TABLES.ORDER_ITEMS)
+    .delete()
+    .eq('order_id', id)
+
+  // 2. حذف الطلب نفسه من الجدول الرئيسي
+  const { data, error } = await supabase
+    .from(TABLES.ORDERS)
+    .delete()
+    .eq('id', id)
 
   if (error) return { data: null, error: error.message }
   return { data, error: null }

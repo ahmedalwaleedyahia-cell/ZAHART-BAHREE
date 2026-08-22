@@ -1,5 +1,5 @@
 ﻿import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
-import { createOrder, fetchOrders, fetchTodaySummary, subscribeToOrders } from '../services/orderService.js'
+import { createOrder, fetchOrders, fetchTodaySummary, subscribeToOrders, deleteOrder as deleteOrderService } from '../services/orderService.js'
 import { updateOrderStatus as updateOrderStatusService } from '../services/orderService.js'
 import { supabase } from '../supabase/supabase.js'
 import { useAuth } from './AuthContext.jsx'
@@ -14,6 +14,7 @@ export function OrdersProvider({ children }) {
   // ---- Cart state ----
   const [cart, setCart] = useState([])
   const [paymentMethod, setPaymentMethod] = useState('cash')
+  const [orderType, setOrderType] = useState('dine_in') // dine_in, takeaway, delivery
   const [discountPct, setDiscountPct] = useState(0)
   const [orderNotes, setOrderNotes] = useState('')
   const [cashGiven, setCashGiven] = useState('')
@@ -97,6 +98,7 @@ export function OrdersProvider({ children }) {
     setOrderNotes('')
     setCashGiven('')
     setPaymentMethod('cash')
+    setOrderType('dine_in')
   }, [])
 
   const subtotal = cart.reduce((acc, item) => acc + Number(item.price) * Number(item.qty), 0)
@@ -118,16 +120,45 @@ export function OrdersProvider({ children }) {
 
     setProcessing(true)
 
-    const generateUniqueInvoiceNumber = () => {
-      const timestamp = Date.now().toString()
-      const randomDigits = Math.floor(1000 + Math.random() * 9000).toString()
-      return parseInt(timestamp.slice(-6) + randomDigits)
+    // ================= ================= =================
+    // توليد رقم الفاتورة اليومي المتسلسل (يبدأ من 1 كل يوم)
+    // ================= ================= =================
+    const generateDailyInvoiceNumber = async () => {
+      try {
+        const todayStart = new Date()
+        todayStart.setHours(0, 0, 0, 0)
+
+        const { data, error } = await supabase
+          .from('orders')
+          .select('invoice_number')
+          .gte('created_at', todayStart.toISOString())
+          .order('invoice_number', { ascending: false })
+          .limit(1)
+
+        if (error) {
+          console.error('Error fetching latest invoice number:', error)
+          return Math.floor(Date.now() / 1000) % 10000
+        }
+
+        if (data && data.length > 0 && data[0].invoice_number) {
+          const lastNum = parseInt(data[0].invoice_number, 10)
+          return isNaN(lastNum) ? 1 : lastNum + 1
+        }
+
+        return 1
+      } catch (err) {
+        console.error('Error generating daily sequence:', err)
+        return 1
+      }
     }
 
+    const nextInvoiceNum = await generateDailyInvoiceNumber()
+
     const orderData = {
-      invoice_number: generateUniqueInvoiceNumber(),
+      invoice_number: nextInvoiceNum,
       cashierName: profile?.full_name || 'Cashier',
       paymentMethod,
+      orderType,
       subtotal,
       discountPct: parseFloat(discountPct) || 0,
       discountAmount,
@@ -139,9 +170,11 @@ export function OrdersProvider({ children }) {
       notes: orderNotes,
     }
 
+    // تصحيح واستخراج اسم المنتج بجميع الحالات المتوقعة لمنع الأسماء الفارغة
     const items = cart.map(item => ({
       product_id: item.id,
-      product_name: item.name,
+      product_name: item.name || item.product_name || item.name_ar || 'منتج بدون اسم',
+      product_name_ar: item.name_ar || item.product_name_ar || null,
       product_emoji: item.emoji || '🍽️',
       unit_price: item.price,
       quantity: item.qty,
@@ -156,8 +189,8 @@ export function OrdersProvider({ children }) {
       ...data,
       items: cart.map(c => ({
         product_id: c.id,
-        product_name: c.name,
-        product_name_ar: c.name_ar || null,
+        product_name: c.name || c.product_name || 'منتج بدون اسم',
+        product_name_ar: c.name_ar || c.product_name_ar || null,
         unit_price: Number(c.price),
         quantity: Number(c.qty),
         line_total: Number(c.price) * Number(c.qty),
@@ -166,11 +199,34 @@ export function OrdersProvider({ children }) {
     })
     clearCart()
     return { data, error: null }
-  }, [cart, processing, paymentMethod, cashGiven, totalAmount, subtotal, discountPct, discountAmount, dynamicVatRate, vatAmount, changeAmount, orderNotes, profile, clearCart])
+  }, [cart, processing, paymentMethod, orderType, cashGiven, totalAmount, subtotal, discountPct, discountAmount, dynamicVatRate, vatAmount, changeAmount, orderNotes, profile, clearCart])
 
   const updateOrderStatus = useCallback(async (id, status) => {
     return await updateOrderStatusService(id, status)
   }, [])
+
+  const deleteOrder = async (orderId) => {
+    try {
+      const { error: itemsError } = await supabase
+        .from('order_items')
+        .delete()
+        .eq('order_id', orderId)
+
+      if (itemsError) throw itemsError
+      const { error: orderError } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', orderId)
+
+      if (orderError) throw orderError
+
+      setOrders((prev) => prev.filter((o) => o.id !== orderId))
+      return { success: true }
+    } catch (err) {
+      console.error('Delete order error:', err)
+      return { success: false, error: err.message }
+    }
+  }
 
   const updatePaymentMethod = useCallback(async (id, newMethod) => {
     try {
@@ -189,7 +245,7 @@ export function OrdersProvider({ children }) {
     }
   }, [])
 
-  const updateOrderItems = useCallback(async (orderId, newItems, newSubtotal, newTotal, newVatAmount = 0, newDiscountAmount = 0) => {
+  const updateOrderItems = useCallback(async (orderId, newItems, newSubtotal, newTotal, newVatAmount = 0, newDiscountAmount = 0, extraUpdates = {}) => {
     try {
       const { error: deleteError } = await supabase
         .from('order_items')
@@ -198,14 +254,17 @@ export function OrdersProvider({ children }) {
 
       if (deleteError) throw deleteError
 
-      const formattedItems = newItems.map(item => ({
-        order_id: orderId,
-        product_id: item.product_id || item.id,
-        product_name: item.product_name || item.name,
-        unit_price: item.unit_price || item.price,
-        quantity: item.quantity || item.qty,
-        line_total: (item.unit_price || item.price) * (item.quantity || item.qty)
-      }))
+      const formattedItems = newItems.map(item => {
+        const name = item.product_name || item.name || item.name_ar || 'منتج بدون اسم'
+        return {
+          order_id: orderId,
+          product_id: item.product_id || item.id,
+          product_name: name,
+          unit_price: item.unit_price || item.price,
+          quantity: item.quantity || item.qty,
+          line_total: (item.unit_price || item.price) * (item.quantity || item.qty)
+        }
+      })
 
       const { error: insertError } = await supabase
         .from('order_items')
@@ -217,7 +276,13 @@ export function OrdersProvider({ children }) {
         subtotal: newSubtotal,
         total_amount: newTotal,
         vat_amount: newVatAmount,
-        discount_amount: newDiscountAmount
+        discount_amount: newDiscountAmount,
+        ...(extraUpdates.payment_method && { payment_method: extraUpdates.payment_method }),
+        ...(extraUpdates.order_type && { order_type: extraUpdates.order_type }),
+        ...(extraUpdates.notes !== undefined && { notes: extraUpdates.notes }),
+        ...(extraUpdates.cash_given !== undefined && { cash_given: extraUpdates.cash_given }),
+        ...(extraUpdates.change_amount !== undefined && { change_amount: extraUpdates.change_amount }),
+        ...(extraUpdates.created_at && { created_at: extraUpdates.created_at }),
       }
 
       const { data: updatedOrder, error: orderError } = await supabase
@@ -246,6 +311,7 @@ export function OrdersProvider({ children }) {
   const value = {
     cart, addToCart, removeFromCart, updateQty, clearCart,
     paymentMethod, setPaymentMethod,
+    orderType, setOrderType,
     discountPct, setDiscountPct,
     orderNotes, setOrderNotes,
     cashGiven, setCashGiven,
@@ -256,6 +322,7 @@ export function OrdersProvider({ children }) {
     processPayment,
     reload: loadOrders,
     updateOrderStatus,
+    deleteOrder,
     updatePaymentMethod,
     updateOrderItems,
   }
