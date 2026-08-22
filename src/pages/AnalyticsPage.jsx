@@ -37,9 +37,9 @@ function normalizeCategory(category) {
 
   const c = String(category).trim().toLowerCase()
 
-  if (c === 'food' || c === 'foods') return 'food'
-  if (c === 'drink' || c === 'drinks') return 'drinks'
-  if (c === 'dessert' || c === 'desserts') return 'desserts'
+  if (c === 'food' || c === 'foods' || c === 'طعام') return 'food'
+  if (c === 'drink' || c === 'drinks' || c === 'مشروبات') return 'drinks'
+  if (c === 'dessert' || c === 'desserts' || c === 'حلا') return 'desserts'
 
   return 'other'
 }
@@ -157,6 +157,15 @@ export default function AnalyticsPage() {
       return acc
     }, {})
 
+    // تجميع إجمالي الفئات المحددة
+    const calculatedSum = Object.values(grouped).reduce((a, b) => a + b, 0)
+
+    // احتساب المتبقي من المبيعات غير المصنفة لضمان مطابقة totalRev
+    if (totalRev > calculatedSum) {
+      const diff = totalRev - calculatedSum
+      grouped.other = (grouped.other || 0) + diff
+    }
+
     const result = Object.entries(grouped)
       .filter(([_, value]) => value > 0)
       .map(([key, value]) => ({
@@ -166,7 +175,7 @@ export default function AnalyticsPage() {
       }))
 
     return result
-  }, [categoryData])
+  }, [categoryData, totalRev])
 
   const hourlyChartData = useMemo(() => {
     const customHourOrder = [
