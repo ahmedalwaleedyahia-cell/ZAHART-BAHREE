@@ -366,7 +366,6 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
       created_at
     `)
 
-  // تصفية التاريخ بشكل مباشر لمنع تحميل قائمة UUIDs ضخمة في الرابط
   const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
   if (fromIso) query = query.gte('created_at', fromIso)
   if (toIso) query = query.lte('created_at', toIso)
@@ -377,7 +376,9 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
 
   const agg = {}
     ; (data || []).forEach(item => {
-      const rawCategory = item.category || 'food'
+      const rawCategory = item.category && String(item.category).trim() !== ''
+        ? item.category
+        : 'food'
 
       if (!agg[rawCategory]) {
         agg[rawCategory] = { revenue: 0, qty: 0 }
@@ -389,7 +390,8 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
   return {
     data: Object.entries(agg).map(([category, v]) => ({
       category,
-      ...v
+      revenue: v.revenue,
+      qty: v.qty
     })),
     error: null,
   }
