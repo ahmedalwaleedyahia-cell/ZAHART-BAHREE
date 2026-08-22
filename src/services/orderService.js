@@ -8,12 +8,12 @@ const formatUtcRange = (dateFrom, dateTo) => {
 }
 
 // ============================================================
-// CREATE ORDER (تحديث جذر لحفظ عناصر الفاتورة بالكامل)
+// CREATE ORDER (تحديث شامل مع إرجاع العناصر المحفوظة)
 // ============================================================
-export async function createOrder(orderData, items = []) {
+export async function createOrder(orderData, items) {
   const { data: { user } } = await supabase.auth.getUser()
 
-  // 1. إنشاء الطلب في جدول orders
+  // أ. إنشاء الفاتورة الرئيسية
   const { data: order, error: orderError } = await supabase
     .from(TABLES.ORDERS)
     .insert({
@@ -38,33 +38,52 @@ export async function createOrder(orderData, items = []) {
 
   if (orderError) return { data: null, error: orderError.message }
 
-  // 2. إدخال أصناف الطلب في جدول order_items لظهور الأرقام والأسماء وإمكانية التعديل
-  if (items && items.length > 0) {
-    const formattedItems = items.map(item => ({
-      order_id: order.id,
-      product_id: item.product_id || item.id || null,
-      product_name: item.product_name || item.name || item.product_name_ar || item.name_ar || 'منتج بدون اسم',
-      unit_price: Number(item.unit_price || item.price || 0),
-      quantity: Number(item.quantity || item.qty || 1),
-      line_total: Number(item.unit_price || item.price || 0) * Number(item.quantity || item.qty || 1),
-      category: item.category || item.category_slug || 'food',
-    }))
+  let insertedItems = []
 
-    const { error: itemsError } = await supabase
+  // ب. حفظ عناصر السلة بداخل جدول order_items وحل مشكلة مسميات المنتجات
+  if (items && items.length > 0) {
+    const itemsToInsert = items.map(item => {
+      const name = item.product_name || item.name || item.product_name_ar || item.name_ar || 'منتج'
+      const nameAr = item.product_name_ar || item.name_ar || name
+      const price = Number(item.unit_price || item.price || 0)
+      const qty = Number(item.quantity || item.qty || 1)
+
+      return {
+        order_id: order.id,
+        product_id: item.product_id || item.id,
+        product_name: name,
+        product_name_ar: nameAr,
+        unit_price: price,
+        quantity: qty,
+        line_total: item.line_total || (price * qty),
+        category: item.category || 'food'
+      }
+    })
+
+    const { data: insertedData, error: itemsError } = await supabase
       .from(TABLES.ORDER_ITEMS)
-      .insert(formattedItems)
+      .insert(itemsToInsert)
+      .select()
 
     if (itemsError) {
-      console.error('Error inserting order items:', itemsError.message)
+      console.error('Error inserting order items:', itemsError)
+    } else if (insertedData) {
+      insertedItems = insertedData
     }
   }
 
-  // إعادة جلب الفاتورة كاملة مع الأصناف المرفقة
-  return fetchOrder(order.id)
+  // دمج الأصناف مع الطلب المرجوع للعمل مباشرة مع الطباعة والواجهة
+  const fullOrder = {
+    ...order,
+    items: insertedItems.length > 0 ? insertedItems : items,
+    order_items: insertedItems.length > 0 ? insertedItems : items
+  }
+
+  return { data: fullOrder, error: null }
 }
 
 // ============================================================
-// FETCH ORDERS
+// FETCH ORDERS (جلب الشحنة مع عناصر order_items بشكل صريح)
 // ============================================================
 
 export async function fetchOrders({
@@ -77,7 +96,10 @@ export async function fetchOrders({
 } = {}) {
   let query = supabase
     .from(TABLES.ORDERS)
-    .select(`*, items:order_items(*)`)
+    .select(`
+      *,
+      items:${TABLES.ORDER_ITEMS}(*)
+    `)
     .order('created_at', { ascending: false })
 
   if (limit && typeof limit === 'number') {
@@ -104,7 +126,7 @@ export async function fetchOrders({
 export async function fetchOrder(id) {
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
-    .select(`*, items:order_items(*)`)
+    .select(`*, items:${TABLES.ORDER_ITEMS}(*)`)
     .eq('id', id)
     .single()
 
