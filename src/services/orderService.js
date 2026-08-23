@@ -8,8 +8,8 @@ const formatUtcRange = (dateFrom, dateTo) => {
 
 export async function createOrder(orderData, items) {
   const { data: { user } } = await supabase.auth.getUser()
-  // الاعتماد على رقم الفاتورة المرسل (التسلسلي أو المعدل يدوياً)، أو توليد رقم احتياطي فقط في حال انعدامه
   const uniqueInvoiceNumber = orderData.invoice_number || String(Math.floor(Date.now() / 1000))
+
   const formattedItems = (items || []).map(item => {
     const price = Number(item.unit_price ?? item.price ?? 0)
     const qty = Number(item.quantity ?? item.qty ?? 1)
@@ -29,7 +29,7 @@ export async function createOrder(orderData, items) {
     }
   })
 
-  // 1. إنشاء الطلب مع استخدام الرقم الفريد لتجنب الخطأ[cite: 9]
+  // 1. إنشاء الطلب الأساسي أولاً والتحقق من نجاحه بدقة
   const { data: order, error: orderError } = await supabase
     .from(TABLES.ORDERS)
     .insert({
@@ -53,11 +53,14 @@ export async function createOrder(orderData, items) {
     .select()
     .single()
 
-  if (orderError) return { data: null, error: orderError.message }
+  if (orderError || !order) {
+    console.error('Failed to create main order:', orderError)
+    return { data: null, error: orderError?.message || 'Failed to create order record' }
+  }
 
   let insertedItems = []
 
-  // 2. إدخال الأصناف في جدول order_items[cite: 9]
+  // 2. إدخال الأصناف في جدول order_items مع ربطها بـ order.id الفعلي
   if (formattedItems.length > 0) {
     const itemsToInsert = formattedItems.map(item => ({
       order_id: order.id,
@@ -75,7 +78,9 @@ export async function createOrder(orderData, items) {
       .insert(itemsToInsert)
       .select()
 
-    if (!itemsError && insertedData) {
+    if (itemsError) {
+      console.error('Error inserting order items:', itemsError)
+    } else if (insertedData) {
       insertedItems = insertedData
     }
   }
