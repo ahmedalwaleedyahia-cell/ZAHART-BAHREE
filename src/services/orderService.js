@@ -9,6 +9,9 @@ const formatUtcRange = (dateFrom, dateTo) => {
 export async function createOrder(orderData, items) {
   const { data: { user } } = await supabase.auth.getUser()
 
+  // توليد رقم فاتورة فريد لمنع تكرار الـ Constraint Violation نهائياً[cite: 9]
+  const uniqueInvoiceNumber = orderData.invoice_number || `INV-${Date.now()}-${Math.floor(Math.random() * 1000)}`
+
   const formattedItems = (items || []).map(item => {
     const price = Number(item.unit_price ?? item.price ?? 0)
     const qty = Number(item.quantity ?? item.qty ?? 1)
@@ -28,11 +31,11 @@ export async function createOrder(orderData, items) {
     }
   })
 
-  // 1. إنشاء الطلب مع حفظ مصفوفة items مباشرة كـ JSONB لتجنب الفقدان
+  // 1. إنشاء الطلب مع استخدام الرقم الفريد لتجنب الخطأ[cite: 9]
   const { data: order, error: orderError } = await supabase
     .from(TABLES.ORDERS)
     .insert({
-      invoice_number: orderData.invoice_number,
+      invoice_number: uniqueInvoiceNumber,
       cashier_id: user?.id,
       cashier_name: orderData.cashierName || user?.user_metadata?.full_name || 'Cashier',
       payment_method: orderData.paymentMethod || 'cash',
@@ -56,7 +59,7 @@ export async function createOrder(orderData, items) {
 
   let insertedItems = []
 
-  // 2. إدخال الأصناف في جدول order_items
+  // 2. إدخال الأصناف في جدول order_items[cite: 9]
   if (formattedItems.length > 0) {
     const itemsToInsert = formattedItems.map(item => ({
       order_id: order.id,
