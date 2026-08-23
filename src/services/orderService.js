@@ -8,7 +8,7 @@ const formatUtcRange = (dateFrom, dateTo) => {
 
 export async function createOrder(orderData, items) {
   const { data: { user } } = await supabase.auth.getUser()
-// الاعتماد على رقم الفاتورة المرسل (التسلسلي أو المعدل يدوياً)، أو توليد رقم احتياطي فقط في حال انعدامه
+  // الاعتماد على رقم الفاتورة المرسل (التسلسلي أو المعدل يدوياً)، أو توليد رقم احتياطي فقط في حال انعدامه
   const uniqueInvoiceNumber = orderData.invoice_number || String(Math.floor(Date.now() / 1000))
   const formattedItems = (items || []).map(item => {
     const price = Number(item.unit_price ?? item.price ?? 0)
