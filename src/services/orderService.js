@@ -182,6 +182,40 @@ export async function fetchTodaySummary() {
   }
 }
 
+export async function fetchBestSellers(limit = 5) {
+  const { data, error } = await supabase
+    .from(TABLES.ORDER_ITEMS)
+    .select('product_name, product_name_ar, quantity, line_total')
+
+  if (error || !data) return { data: [], error: error?.message || null }
+
+  const map = {}
+  data.forEach(item => {
+    const name = item.product_name_ar || item.product_name || 'صنف'
+    if (!map[name]) {
+      map[name] = { name, totalQty: 0, totalSales: 0 }
+    }
+    map[name].totalQty += Number(item.quantity || 0)
+    map[name].totalSales += Number(item.line_total || 0)
+  })
+
+  const sorted = Object.values(map)
+    .sort((a, b) => b.totalQty - a.totalQty)
+    .slice(0, limit)
+
+  return { data: sorted, error: null }
+}
+
+export async function fetchSalesStats() {
+  const { data, error } = await supabase
+    .from(TABLES.ORDERS)
+    .select('created_at, total_amount, status')
+
+  if (error || !data) return { data: [], error: error?.message || null }
+
+  return { data, error: null }
+}
+
 export async function updateOrderStatus(id, status) {
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
