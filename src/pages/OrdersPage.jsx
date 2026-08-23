@@ -158,6 +158,7 @@ body * {
                 <tbody>
                   {filteredOrders.map(o => {
                     const method = (o.payment_method || 'cash').toLowerCase()
+                    const itemList = o.items || o.order_items || []
                     return (
                       <tr
                         key={o.id}
@@ -168,13 +169,20 @@ body * {
                             INV-{String(o.invoice_number || o.order_number || 0).padStart(5, '0')}
                           </span>
                         </td>
-      
+
                         <td className="items-cell">
-                          {o.items?.slice(0, 2).map(i => {
-                            const name = i.product_name_ar || i.product_name || i.name_ar || i.name || 'صنف غير محدد'
-                            return `${i.quantity}× ${name}`
-                          }).join(', ')}
-                          {(o.items?.length || 0) > 2 && ` +${o.items.length - 2}`}
+                          {Array.isArray(itemList) && itemList.length > 0 ? (
+                            <>
+                              {itemList.slice(0, 2).map((i) => {
+                                const qty = i.quantity || i.qty || 1
+                                const name = i.product_name_ar || i.product_name || i.name_ar || i.name || i.title || 'صنف'
+                                return `${qty}× ${name}`
+                              }).join(', ')}
+                              {itemList.length > 2 && ` +${itemList.length - 2}`}
+                            </>
+                          ) : (
+                            <span style={{ color: 'var(--txt3)', fontSize: '11px' }}>لا توجد عناصر</span>
+                          )}
                         </td>
                         <td style={{ fontSize: 12.5 }}>{o.cashier_name}</td>
                         <td>
@@ -249,7 +257,7 @@ body * {
           )
       }
 
-      {/* --- نافذة تأكيد حذف الطلب المصححة --- */}
+      {/* --- نافذة تأكيد حذف الطلب --- */}
       {deletingOrder && (
         <Modal onClose={() => setDeletingOrder(null)}>
           <div style={{
@@ -261,7 +269,6 @@ body * {
             fontFamily: 'inherit',
             direction: 'rtl'
           }}>
-            {/* الأيقونة الحمراء */}
             <div style={{
               width: '54px',
               height: '54px',
@@ -280,17 +287,14 @@ body * {
               </svg>
             </div>
 
-            {/* العنوان الرئيسي */}
             <h3 style={{ margin: '0 0 8px 0', fontSize: '18px', fontWeight: '800', color: '#111827' }}>
               حذف الطلب؟
             </h3>
 
-            {/* الرسالة الوصفية */}
             <p style={{ color: '#6b7280', fontSize: '13px', margin: '0 0 24px 0', lineHeight: '1.6' }}>
               هل أنت تأكد أنك تريد حذف الطلب <strong style={{ color: '#111827' }}>INV-{String(deletingOrder.invoice_number || deletingOrder.order_number || 0).padStart(5, '0')}</strong> من النظام؟
             </p>
 
-            {/* أزرار التحكم */}
             <div style={{ display: 'flex', gap: '12px', width: '100%', justifyContent: 'center' }}>
               <button
                 type="button"

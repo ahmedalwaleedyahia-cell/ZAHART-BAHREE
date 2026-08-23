@@ -40,19 +40,19 @@ export async function createOrder(orderData, items) {
 
   let insertedItems = []
 
-  // ب. حفظ عناصر السلة بداخل جدول order_items
-  // ب. حفظ عناصر السلة بداخل جدول order_items (شامل لجميع مسميات السلة)
+  // ب. حفظ عناصر السلة بداخل جدول order_items مع حماية الأسماء
   if (items && items.length > 0) {
     const itemsToInsert = items.map(item => {
-      const price = Number(item.price ?? item.unit_price ?? item.line_total ?? 0)
+      const price = Number(item.unit_price ?? item.price ?? item.line_total ?? 0)
       const qty = Number(item.quantity ?? item.qty ?? 1)
       const total = Number(item.line_total ?? (price * qty))
+      const fallbackName = item.product_name || item.name || item.title || 'صنف'
 
       return {
         order_id: order.id,
         product_id: item.product_id || item.id || null,
-        product_name: item.product_name || item.name || item.title || 'Item',
-        product_name_ar: item.product_name_ar || item.name_ar || item.name || null,
+        product_name: fallbackName,
+        product_name_ar: item.product_name_ar || item.name_ar || fallbackName,
         unit_price: price,
         quantity: qty,
         line_total: total,
@@ -84,9 +84,6 @@ export async function createOrder(orderData, items) {
 // ============================================================
 // FETCH ORDERS
 // ============================================================
-// ============================================================
-// FETCH ORDERS (معدلة بدون تكرار العلاقات لمنع خطأ 400)
-// ============================================================
 export async function fetchOrders({
   limit = null,
   offset = 0,
@@ -114,16 +111,38 @@ export async function fetchOrders({
   if (fromIso) query = query.gte('created_at', fromIso)
   if (toIso) query = query.lte('created_at', toIso)
 
-  const { data, error } = await query
-  if (error) return { data: [], error: error.message }
+  let { data, error } = await query
 
-  // توحيد المسمى لجميع الصفحات
-  const normalizedData = (data || []).map(order => {
-    const rawItems = order.order_items || order.items || []
+  // إذا حدث خطأ في الربط استرجع الطلبات مباشرة
+  if (error) {
+    let fallbackQuery = supabase
+      .from(TABLES.ORDERS)
+      .select('*')
+      .order('created_at', { ascending: false })
+
+    if (limit) fallbackQuery = fallbackQuery.range(offset, offset + limit - 1)
+    const fallbackRes = await fallbackQuery
+    data = fallbackRes.data || []
+  }
+
+  if (!data || data.length === 0) return { data: [], error: null }
+
+  // توحيد مسمى عناصر الطلب لجميع الواجهات
+  const normalizedData = data.map(order => {
+    let finalItems = []
+
+    if (Array.isArray(order.order_items) && order.order_items.length > 0) {
+      finalItems = order.order_items
+    } else if (Array.isArray(order.items) && order.items.length > 0) {
+      finalItems = order.items
+    } else if (typeof order.items === 'string') {
+      try { finalItems = JSON.parse(order.items) } catch (e) { finalItems = [] }
+    }
+
     return {
       ...order,
-      items: rawItems,
-      order_items: rawItems
+      items: finalItems,
+      order_items: finalItems
     }
   })
 
@@ -355,10 +374,7 @@ export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) 
 }
 
 // ============================================================
-// CATEGORY REVENUE BREAKDOWN (تم إزالة category_slug لمنع خطأ 400)
-// ============================================================
-// ============================================================
-// CATEGORY REVENUE BREAKDOWN (آمن وبدون أخطاء 400)
+// CATEGORY REVENUE BREAKDOWN
 // ============================================================
 export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } = {}) {
   let query = supabase
