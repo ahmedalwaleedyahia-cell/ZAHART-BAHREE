@@ -206,6 +206,51 @@ export async function fetchBestSellers(limit = 5) {
   return { data: sorted, error: null }
 }
 
+export async function fetchCategoryBreakdown() {
+  const { data, error } = await supabase
+    .from(TABLES.ORDER_ITEMS)
+    .select('category, line_total, quantity')
+
+  if (error || !data) return { data: [], error: error?.message || null }
+
+  const map = {}
+  data.forEach(item => {
+    const cat = item.category || 'other'
+    if (!map[cat]) {
+      map[cat] = { category: cat, totalSales: 0, count: 0 }
+    }
+    map[cat].totalSales += Number(item.line_total || 0)
+    map[cat].count += Number(item.quantity || 0)
+  })
+
+  return { data: Object.values(map), error: null }
+}
+
+export async function fetchDailySales(days = 7) {
+  const { data, error } = await supabase
+    .from(TABLES.ORDERS)
+    .select('created_at, total_amount, status')
+    .order('created_at', { ascending: true })
+
+  if (error || !data) return { data: [], error: error?.message || null }
+
+  const map = {}
+  data.forEach(order => {
+    if (order.status === 'completed') {
+      const dateKey = new Date(order.created_at).toISOString().split('T')[0]
+      if (!map[dateKey]) map[dateKey] = 0
+      map[dateKey] += Number(order.total_amount || 0)
+    }
+  })
+
+  const result = Object.keys(map).slice(-days).map(date => ({
+    date,
+    total: map[date]
+  }))
+
+  return { data: result, error: null }
+}
+
 export async function fetchSalesStats() {
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
