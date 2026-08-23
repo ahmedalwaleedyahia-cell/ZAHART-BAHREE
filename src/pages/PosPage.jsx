@@ -1,4 +1,8 @@
-﻿import { useProducts } from '../context/ProductsContext'
+﻿// ============================================================
+// src/pages/PosPage.jsx
+// ============================================================
+
+import { useProducts } from '../context/ProductsContext'
 import { useOrders } from '../context/OrdersContext'
 import { useSettings } from '../context/SettingsContext'
 import { useState, useMemo, useRef, useCallback } from 'react'
@@ -8,6 +12,7 @@ import ReceiptPreview from '../components/ui/ReceiptPreview.jsx'
 import KitchenReceipt from '../components/ui/KitchenReceipt.jsx'
 import Skeleton from '../components/ui/Skeleton.jsx'
 import { useReactToPrint } from 'react-to-print'
+import { getCategoryIcon } from '../utils/categoryIcon.js'
 import {
     UtensilsCrossed,
     ShoppingCart,
@@ -135,16 +140,21 @@ body * {
                     >
                         <Layers size={14} /> All
                     </button>
-                    {categories.map(c => (
-                        <button
-                            key={c.slug}
-                            type="button"
-                            className={`cat-tab ${selectedCat === c.slug ? 'active' : ''}`}
-                            onClick={() => setSelectedCat(c.slug)}
-                        >
-                            {c.emoji} {c.name}
-                        </button>
-                    ))}
+                    {categories.map(c => {
+                        const IconComponent = getCategoryIcon(c)
+                        return (
+                            <button
+                                key={c.slug}
+                                type="button"
+                                className={`cat-tab ${selectedCat === c.slug ? 'active' : ''}`}
+                                onClick={() => setSelectedCat(c.slug)}
+                                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+                            >
+                                <IconComponent size={14} />
+                                <span>{c.name}</span>
+                            </button>
+                        )
+                    })}
                 </div>
 
                 {loading ? (
@@ -365,7 +375,7 @@ body * {
                         </button>
                     </div>
 
-                    {/* --- أزرار نوع الطلب (تحت أزرار طرق الدفع مباشرة) --- */}
+                    {/* --- أزرار نوع الطلب --- */}
                     <div className="pay-method-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '6px', marginTop: '6px' }}>
                         <button
                             type="button"

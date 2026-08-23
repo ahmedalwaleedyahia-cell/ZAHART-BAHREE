@@ -13,13 +13,14 @@ export async function createOrder(orderData, items) {
     const price = Number(item.unit_price ?? item.price ?? 0)
     const qty = Number(item.quantity ?? item.qty ?? 1)
     const total = Number(item.line_total ?? (price * qty))
-    const name = item.product_name || item.product_name_ar || item.name || item.name_ar || item.title || 'صنف'
+    const name = item.product_name || item.name || item.product_name_ar || item.name_ar || 'صنف'
     const nameAr = item.product_name_ar || item.name_ar || name
 
     return {
       product_id: item.product_id || item.id || null,
       product_name: name,
       product_name_ar: nameAr,
+      product_emoji: item.product_emoji || item.emoji || '🍽️',
       unit_price: price,
       quantity: qty,
       line_total: total,
@@ -27,6 +28,7 @@ export async function createOrder(orderData, items) {
     }
   })
 
+  // 1. إنشاء الطلب مع حفظ مصفوفة items مباشرة كـ JSONB لتجنب الفقدان
   const { data: order, error: orderError } = await supabase
     .from(TABLES.ORDERS)
     .insert({
@@ -54,18 +56,25 @@ export async function createOrder(orderData, items) {
 
   let insertedItems = []
 
+  // 2. إدخال الأصناف في جدول order_items
   if (formattedItems.length > 0) {
     const itemsToInsert = formattedItems.map(item => ({
-      ...item,
-      order_id: order.id
+      order_id: order.id,
+      product_id: item.product_id,
+      product_name: item.product_name,
+      product_name_ar: item.product_name_ar,
+      unit_price: item.unit_price,
+      quantity: item.quantity,
+      line_total: item.line_total,
+      category: item.category
     }))
 
-    const { data: insertedData } = await supabase
+    const { data: insertedData, error: itemsError } = await supabase
       .from(TABLES.ORDER_ITEMS)
       .insert(itemsToInsert)
       .select()
 
-    if (insertedData) {
+    if (!itemsError && insertedData) {
       insertedItems = insertedData
     }
   }
@@ -182,10 +191,14 @@ export async function fetchTodaySummary() {
   }
 }
 
-export async function fetchBestSellers(limit = 5) {
-  const { data, error } = await supabase
-    .from(TABLES.ORDER_ITEMS)
-    .select('product_name, product_name_ar, quantity, line_total')
+export async function fetchBestSellers(limit = 5, options = {}) {
+  const { fromIso, toIso } = formatUtcRange(options.dateFrom, options.dateTo)
+  let query = supabase.from(TABLES.ORDER_ITEMS).select('product_name, product_name_ar, quantity, line_total, created_at')
+
+  if (fromIso) query = query.gte('created_at', fromIso)
+  if (toIso) query = query.lte('created_at', toIso)
+
+  const { data, error } = await query
 
   if (error || !data) return { data: [], error: error?.message || null }
 
@@ -193,23 +206,27 @@ export async function fetchBestSellers(limit = 5) {
   data.forEach(item => {
     const name = item.product_name_ar || item.product_name || 'صنف'
     if (!map[name]) {
-      map[name] = { name, totalQty: 0, totalSales: 0 }
+      map[name] = { product_name: name, total_qty: 0, total_sales: 0 }
     }
-    map[name].totalQty += Number(item.quantity || 0)
-    map[name].totalSales += Number(item.line_total || 0)
+    map[name].total_qty += Number(item.quantity || 0)
+    map[name].total_sales += Number(item.line_total || 0)
   })
 
   const sorted = Object.values(map)
-    .sort((a, b) => b.totalQty - a.totalQty)
+    .sort((a, b) => b.total_qty - a.total_qty)
     .slice(0, limit)
 
   return { data: sorted, error: null }
 }
 
-export async function fetchCategoryBreakdown() {
-  const { data, error } = await supabase
-    .from(TABLES.ORDER_ITEMS)
-    .select('category, line_total, quantity')
+export async function fetchCategoryBreakdown(options = {}) {
+  const { fromIso, toIso } = formatUtcRange(options.dateFrom, options.dateTo)
+  let query = supabase.from(TABLES.ORDER_ITEMS).select('category, line_total, quantity, created_at')
+
+  if (fromIso) query = query.gte('created_at', fromIso)
+  if (toIso) query = query.lte('created_at', toIso)
+
+  const { data, error } = await query
 
   if (error || !data) return { data: [], error: error?.message || null }
 
@@ -226,17 +243,23 @@ export async function fetchCategoryBreakdown() {
   return { data: Object.values(map), error: null }
 }
 
-export async function fetchDailySales(days = 7) {
-  const { data, error } = await supabase
+export async function fetchDailySales(days = 7, options = {}) {
+  const { fromIso, toIso } = formatUtcRange(options.dateFrom, options.dateTo)
+  let query = supabase
     .from(TABLES.ORDERS)
     .select('created_at, total_amount, status')
     .order('created_at', { ascending: true })
+
+  if (fromIso) query = query.gte('created_at', fromIso)
+  if (toIso) query = query.lte('created_at', toIso)
+
+  const { data, error } = await query
 
   if (error || !data) return { data: [], error: error?.message || null }
 
   const map = {}
   data.forEach(order => {
-    if (order.status === 'completed') {
+    if (order.status !== 'cancelled') {
       const dateKey = new Date(order.created_at).toISOString().split('T')[0]
       if (!map[dateKey]) map[dateKey] = 0
       map[dateKey] += Number(order.total_amount || 0)
@@ -244,11 +267,54 @@ export async function fetchDailySales(days = 7) {
   })
 
   const result = Object.keys(map).slice(-days).map(date => ({
-    date,
-    total: map[date]
+    sale_date: date,
+    total_revenue: map[date]
   }))
 
   return { data: result, error: null }
+}
+
+export async function fetchHourlySales(options = {}) {
+  const { fromIso, toIso } = formatUtcRange(options.dateFrom, options.dateTo)
+  let query = supabase
+    .from(TABLES.ORDERS)
+    .select('created_at, total_amount, status')
+
+  if (fromIso) query = query.gte('created_at', fromIso)
+  if (toIso) query = query.lte('created_at', toIso)
+
+  const { data, error } = await query
+
+  if (error || !data) return { data: [], error: error?.message || null }
+
+  const hourlyMap = Array.from({ length: 24 }, (_, i) => ({ hour: `${i}:00`, total: 0 }))
+
+  data.forEach(order => {
+    if (order.status !== 'cancelled') {
+      const hour = new Date(order.created_at).getHours()
+      if (hourlyMap[hour]) {
+        hourlyMap[hour].total += Number(order.total_amount || 0)
+      }
+    }
+  })
+
+  return { data: hourlyMap, error: null }
+}
+
+export async function fetchYearSummary(options = {}) {
+  const year = new Date().getFullYear()
+  const { data, error } = await supabase
+    .from(TABLES.ORDERS)
+    .select('created_at, total_amount, status')
+    .gte('created_at', `${year}-01-01T00:00:00.000Z`)
+
+  if (error || !data) return { data: { totalYearSales: 0 }, error: error?.message || null }
+
+  const total = data
+    .filter(o => o.status !== 'cancelled')
+    .reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
+
+  return { data: { totalYearSales: total }, error: null }
 }
 
 export async function fetchSalesStats() {

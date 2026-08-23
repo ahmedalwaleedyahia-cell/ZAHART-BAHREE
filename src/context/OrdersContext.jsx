@@ -1,7 +1,7 @@
 ﻿import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { createOrder, fetchOrders, fetchTodaySummary, subscribeToOrders, deleteOrder as deleteOrderService } from '../services/orderService.js'
 import { updateOrderStatus as updateOrderStatusService } from '../services/orderService.js'
-import { supabase } from '../supabase/supabase.js'
+import { supabase, TABLES } from '../supabase/supabase.js'
 import { useAuth } from './AuthContext.jsx'
 import { useSettings } from './SettingsContext.jsx'
 
@@ -167,15 +167,15 @@ export function OrdersProvider({ children }) {
       notes: orderNotes,
     }
 
-    // تجهيز الأصناف بالحفاظ على الاسم العربي والإنكليزي مفصولين
     const itemsPayload = cart.map(item => ({
       product_id: item.id,
       product_name: item.name || item.product_name || 'Item',
-      product_name_ar: item.name_ar || item.product_name_ar || null,
+      product_name_ar: item.name_ar || item.product_name_ar || item.name || null,
       product_emoji: item.emoji || '🍽️',
       unit_price: Number(item.price),
       quantity: Number(item.qty),
-      line_total: Number(item.price) * Number(item.qty)
+      line_total: Number(item.price) * Number(item.qty),
+      category: item.category || 'food'
     }))
 
     const { data, error } = await createOrder(orderData, itemsPayload)
@@ -202,19 +202,8 @@ export function OrdersProvider({ children }) {
 
   const deleteOrder = async (orderId) => {
     try {
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .delete()
-        .eq('order_id', orderId)
-
-      if (itemsError) throw itemsError
-
-      const { error: orderError } = await supabase
-        .from('orders')
-        .delete()
-        .eq('id', orderId)
-
-      if (orderError) throw orderError
+      const res = await deleteOrderService(orderId)
+      if (res.error) throw new Error(res.error)
 
       setOrders((prev) => prev.filter((o) => o.id !== orderId))
       return { success: true }
@@ -244,7 +233,7 @@ export function OrdersProvider({ children }) {
   const updateOrderItems = useCallback(async (orderId, newItems, newSubtotal, newTotal, newVatAmount = 0, newDiscountAmount = 0, extraUpdates = {}) => {
     try {
       const { error: deleteError } = await supabase
-        .from('order_items')
+        .from(TABLES.ORDER_ITEMS)
         .delete()
         .eq('order_id', orderId)
 
@@ -254,14 +243,15 @@ export function OrdersProvider({ children }) {
         order_id: orderId,
         product_id: item.product_id || item.id,
         product_name: item.product_name || item.name || 'Item',
-        product_name_ar: item.product_name_ar || item.name_ar || null,
+        product_name_ar: item.product_name_ar || item.name_ar || item.name || null,
         unit_price: Number(item.unit_price || item.price || 0),
         quantity: Number(item.quantity || item.qty || 1),
-        line_total: Number(item.line_total || ((item.unit_price || item.price) * (item.quantity || item.qty)))
+        line_total: Number(item.line_total || ((item.unit_price || item.price) * (item.quantity || item.qty))),
+        category: item.category || 'food'
       }))
 
       const { error: insertError } = await supabase
-        .from('order_items')
+        .from(TABLES.ORDER_ITEMS)
         .insert(formattedItems)
 
       if (insertError) throw insertError
@@ -271,6 +261,7 @@ export function OrdersProvider({ children }) {
         total_amount: newTotal,
         vat_amount: newVatAmount,
         discount_amount: newDiscountAmount,
+        items: formattedItems,
         ...(extraUpdates.payment_method && { payment_method: extraUpdates.payment_method }),
         ...(extraUpdates.order_type && { order_type: extraUpdates.order_type }),
         ...(extraUpdates.notes !== undefined && { notes: extraUpdates.notes }),
@@ -280,7 +271,7 @@ export function OrdersProvider({ children }) {
       }
 
       const { data: updatedOrder, error: orderError } = await supabase
-        .from('orders')
+        .from(TABLES.ORDERS)
         .update(updatePayload)
         .eq('id', orderId)
         .select()
