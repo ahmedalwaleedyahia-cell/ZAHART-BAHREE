@@ -259,7 +259,8 @@ export function OrdersProvider({ children }) {
         vat_amount: newVatAmount,
         discount_amount: newDiscountAmount,
         items: formattedItems,
-        ...(extraUpdates.invoice_number && { invoice_number: extraUpdates.invoice_number }),
+        // التأكد من تحديث رقم الفاتورة بشكل صريح ومرن
+        invoice_number: extraUpdates.invoice_number !== undefined ? extraUpdates.invoice_number : undefined,
         ...(extraUpdates.payment_method && { payment_method: extraUpdates.payment_method }),
         ...(extraUpdates.order_type && { order_type: extraUpdates.order_type }),
         ...(extraUpdates.notes !== undefined && { notes: extraUpdates.notes }),
