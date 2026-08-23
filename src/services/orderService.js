@@ -41,20 +41,22 @@ export async function createOrder(orderData, items) {
   let insertedItems = []
 
   // ب. حفظ عناصر السلة بداخل جدول order_items
+  // ب. حفظ عناصر السلة بداخل جدول order_items (شامل لجميع مسميات السلة)
   if (items && items.length > 0) {
     const itemsToInsert = items.map(item => {
-      const price = Number(item.unit_price || item.price || 0)
-      const qty = Number(item.quantity || item.qty || 1)
+      const price = Number(item.price ?? item.unit_price ?? item.line_total ?? 0)
+      const qty = Number(item.quantity ?? item.qty ?? 1)
+      const total = Number(item.line_total ?? (price * qty))
 
       return {
         order_id: order.id,
-        product_id: item.product_id || item.id,
-        product_name: item.product_name || item.name || 'Item',
-        product_name_ar: item.product_name_ar || item.name_ar || null,
+        product_id: item.product_id || item.id || null,
+        product_name: item.product_name || item.name || item.title || 'Item',
+        product_name_ar: item.product_name_ar || item.name_ar || item.name || null,
         unit_price: price,
         quantity: qty,
-        line_total: Number(item.line_total || (price * qty)),
-        category: item.category || 'food'
+        line_total: total,
+        category: item.category || item.category_slug || 'food'
       }
     })
 
@@ -115,7 +117,7 @@ export async function fetchOrders({
   const { data, error } = await query
   if (error) return { data: [], error: error.message }
 
-  // دمج مصفوفات الأصناف تحت المسميين items و order_items في الذاكرة لتفادي أي استثناءات
+  // توحيد المسمى لجميع الصفحات
   const normalizedData = (data || []).map(order => {
     const rawItems = order.order_items || order.items || []
     return {
