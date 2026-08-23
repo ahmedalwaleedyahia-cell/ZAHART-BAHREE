@@ -13,21 +13,21 @@ const formatUtcRange = (dateFrom, dateTo) => {
 export async function createOrder(orderData, items) {
   const { data: { user } } = await supabase.auth.getUser()
 
-  // أ. إنشاء الفاتورة الرئيسية
+  // 1. إنشاء الطلب الرئيسي
   const { data: order, error: orderError } = await supabase
     .from(TABLES.ORDERS)
     .insert({
       invoice_number: orderData.invoice_number,
       cashier_id: user?.id,
-      cashier_name: orderData.cashierName,
-      payment_method: orderData.paymentMethod,
+      cashier_name: orderData.cashierName || user?.user_metadata?.full_name || 'Cashier',
+      payment_method: orderData.paymentMethod || 'cash',
       order_type: orderData.orderType || 'dine_in',
-      subtotal: orderData.subtotal,
-      discount_pct: orderData.discountPct,
-      discount_amount: orderData.discountAmount,
-      vat_rate: orderData.vatRate,
-      vat_amount: orderData.vatAmount,
-      total_amount: orderData.totalAmount,
+      subtotal: orderData.subtotal || 0,
+      discount_pct: orderData.discountPct || 0,
+      discount_amount: orderData.discountAmount || 0,
+      vat_rate: orderData.vatRate || 0,
+      vat_amount: orderData.vatAmount || 0,
+      total_amount: orderData.totalAmount || 0,
       cash_given: orderData.cashGiven || null,
       change_amount: orderData.changeAmount || null,
       notes: orderData.notes || null,
@@ -40,23 +40,23 @@ export async function createOrder(orderData, items) {
 
   let insertedItems = []
 
-  // ب. حفظ عناصر السلة بداخل جدول order_items مع حماية الأسماء
+  // 2. إدراج عناصر الطلب بناءً على الأصناف المضافة ديناميكياً
   if (items && items.length > 0) {
     const itemsToInsert = items.map(item => {
-      const price = Number(item.unit_price ?? item.price ?? item.line_total ?? 0)
+      const price = Number(item.unit_price ?? item.price ?? 0)
       const qty = Number(item.quantity ?? item.qty ?? 1)
       const total = Number(item.line_total ?? (price * qty))
       const fallbackName = item.product_name || item.name || item.title || 'صنف'
 
       return {
         order_id: order.id,
-        product_id: item.product_id || item.id || null,
+        product_id: item.product_id || item.id || null, // null لضمان عدم الارتباط الإجباري
         product_name: fallbackName,
         product_name_ar: item.product_name_ar || item.name_ar || fallbackName,
         unit_price: price,
         quantity: qty,
         line_total: total,
-        category: item.category || item.category_slug || 'food'
+        category: item.category || 'food'
       }
     })
 
@@ -65,9 +65,7 @@ export async function createOrder(orderData, items) {
       .insert(itemsToInsert)
       .select()
 
-    if (itemsError) {
-      console.error('Error inserting order items:', itemsError)
-    } else if (insertedData) {
+    if (!itemsError && insertedData) {
       insertedItems = insertedData
     }
   }
