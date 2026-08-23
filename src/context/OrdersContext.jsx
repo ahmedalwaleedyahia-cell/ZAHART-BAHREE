@@ -122,30 +122,27 @@ export function OrdersProvider({ children }) {
 
     const generateDailyInvoiceNumber = async () => {
       try {
-        const todayStart = new Date()
-        todayStart.setHours(0, 0, 0, 0)
-
         const { data, error } = await supabase
           .from('orders')
           .select('invoice_number')
-          .gte('created_at', todayStart.toISOString())
-          .order('invoice_number', { ascending: false })
+          .order('created_at', { ascending: false })
           .limit(1)
 
-        if (error) {
-          console.error('Error fetching latest invoice number:', error)
-          return Math.floor(Date.now() / 1000) % 10000
+        if (error || !data || data.length === 0 || !data[0].invoice_number) {
+          return '1'
         }
 
-        if (data && data.length > 0 && data[0].invoice_number) {
-          const lastNum = parseInt(data[0].invoice_number, 10)
-          return isNaN(lastNum) ? 1 : lastNum + 1
+        const lastInv = data[0].invoice_number.toString()
+        const numericPart = parseInt(lastInv.replace(/\D/g, ''), 10)
+
+        if (isNaN(numericPart)) {
+          return '1'
         }
 
-        return 1
+        return String(numericPart + 1).padStart(5, '0')
       } catch (err) {
-        console.error('Error generating daily sequence:', err)
-        return 1
+        console.error('Error generating sequence:', err)
+        return '1'
       }
     }
 
@@ -262,6 +259,7 @@ export function OrdersProvider({ children }) {
         vat_amount: newVatAmount,
         discount_amount: newDiscountAmount,
         items: formattedItems,
+        ...(extraUpdates.invoice_number && { invoice_number: extraUpdates.invoice_number }),
         ...(extraUpdates.payment_method && { payment_method: extraUpdates.payment_method }),
         ...(extraUpdates.order_type && { order_type: extraUpdates.order_type }),
         ...(extraUpdates.notes !== undefined && { notes: extraUpdates.notes }),

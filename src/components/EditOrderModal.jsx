@@ -70,10 +70,11 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
     })
   })
 
-  // 2. نوع الطلب، التواريخ، طريقة الدفع والتعليقات
+  // 2. نوع الطلب، التواريخ، طريقة الدفع والتعليقات ورقم الفاتورة
   const initialDate = formatDateForInput(order?.created_at)
   const initialTime = formatTimeForInput(order?.created_at)
 
+  const [invoiceNumber, setInvoiceNumber] = useState(order?.invoice_number || '')
   const [orderType, setOrderType] = useState(order?.order_type || 'dine_in')
   const [orderDate, setOrderDate] = useState(initialDate)
   const [orderTime, setOrderTime] = useState(initialTime)
@@ -194,6 +195,7 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
       const updatedCreatedAt = new Date(`${orderDate}T${orderTime}:00`).toISOString()
 
       const orderPayloadUpdates = {
+        invoice_number: invoiceNumber.trim() || undefined,
         order_type: orderType,
         payment_method: paymentMethod,
         cash_given: paymentMethod === 'cash' ? (numericCashGiven || null) : null,
@@ -219,6 +221,7 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
 
       const updatedOrder = {
         ...order,
+        invoice_number: invoiceNumber.trim() || order?.invoice_number,
         items: normalizedItems,
         subtotal: subtotal,
         discount_amount: discountAmount,
@@ -246,7 +249,7 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
     }
   }
 
-  const orderNumStr = String(order?.invoice_number || order?.order_number || order?.id || '').padStart(5, '0')
+  const orderNumStr = String(invoiceNumber || order?.invoice_number || order?.order_number || order?.id || '').padStart(5, '0')
 
   return (
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 99999 }}>
@@ -368,6 +371,21 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
 
         {/* Scrollable Content Container */}
         <div style={{ overflowY: 'auto', paddingRight: '4px', flex: 1, marginBottom: '16px' }}>
+
+          {/* Invoice Number Input */}
+          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
+            <label className="section-label">
+              Invoice Number / رقم الفاتورة
+            </label>
+            <input
+              type="text"
+              value={invoiceNumber}
+              onChange={e => setInvoiceNumber(e.target.value)}
+              className="adaptive-input"
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
+              placeholder="Enter invoice number..."
+            />
+          </div>
 
           {/* 0. Order Type Selector */}
           <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
