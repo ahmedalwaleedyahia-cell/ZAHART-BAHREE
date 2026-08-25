@@ -6,10 +6,6 @@ import { fmtNum, fmtDateTime } from '../utils/format.js'
 import {
   fetchBestSellers,
   fetchDailySales,
-  fetchHourlySales,
-  fetchCategoryBreakdown,
-  fetchYearSummary,
-  fetchTodaySummary,
   fetchOrders
 } from '../services/orderService.js'
 

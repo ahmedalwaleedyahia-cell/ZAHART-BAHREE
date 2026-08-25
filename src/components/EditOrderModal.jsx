@@ -51,11 +51,10 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
     }
   }, [])
 
-  // 1. عناصر الطلب
   const [items, setItems] = useState(() => {
-    return (order?.items || []).map(item => {
+    return (order?.items || order?.order_items || []).map(item => {
       const uPrice = parseFloat(item.unit_price || item.price) || 0
-      const qty = parseInt(item.quantity, 10) || 1
+      const qty = parseInt(item.quantity || item.qty, 10) || 1
       const pName = item.product_name || item.name || item.product_name_ar || 'Product'
       return {
         ...item,
@@ -70,7 +69,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
     })
   })
 
-  // 2. نوع الطلب، التواريخ، طريقة الدفع والتعليقات ورقم الفاتورة
   const initialDate = formatDateForInput(order?.created_at)
   const initialTime = formatTimeForInput(order?.created_at)
 
@@ -223,6 +221,7 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
         ...order,
         invoice_number: invoiceNumber.trim() || order?.invoice_number,
         items: normalizedItems,
+        order_items: normalizedItems,
         subtotal: subtotal,
         discount_amount: discountAmount,
         vat_amount: tax,
@@ -267,24 +266,20 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
           display: flex;
           flex-direction: column;
         }
-
         .adaptive-card {
           background-color: var(--surf2, rgba(0, 0, 0, 0.2)) !important;
           border: 1px solid var(--bdr, rgba(255, 255, 255, 0.1)) !important;
           border-radius: 12px !important;
         }
-
         .adaptive-input {
           background-color: var(--surf3, var(--surf2, rgba(0, 0, 0, 0.2))) !important;
           color: var(--txt, inherit) !important;
           border: 1px solid var(--bdr, rgba(197, 160, 89, 0.3)) !important;
         }
-
         .adaptive-input option {
           background-color: var(--surf, #1c1917) !important;
           color: var(--txt, #f4f4f5) !important;
         }
-
         .type-btn {
           flex: 1;
           display: flex;
@@ -301,13 +296,11 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
           color: var(--txt2, #a1a1aa);
           transition: all 0.2s ease;
         }
-
         .type-btn.active {
           background: var(--gold, linear-gradient(135deg, #c5a059 0%, #a37f3f 100%));
           color: #000000;
           border-color: transparent;
         }
-
         .btn-cancel-custom {
           background-color: transparent !important;
           border: 1px solid var(--bdr, rgba(128, 128, 128, 0.3)) !important;
@@ -317,13 +310,7 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
           font-weight: 600 !important;
           font-size: 13px !important;
           cursor: pointer !important;
-          transition: all 0.15s ease !important;
         }
-
-        .btn-cancel-custom:hover {
-          background-color: var(--surf2, rgba(128, 128, 128, 0.15)) !important;
-        }
-
         .btn-gold-custom {
           background: var(--gold, linear-gradient(135deg, #c5a059 0%, #a37f3f 100%)) !important;
           color: #000000 !important;
@@ -334,7 +321,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
           font-size: 13px !important;
           cursor: pointer !important;
         }
-
         .section-label {
           color: var(--gold, #c5a059);
           font-size: 11px;
@@ -349,309 +335,130 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
       `}</style>
 
       <div className="adaptive-modal-box" onClick={e => e.stopPropagation()}>
-
-        {/* Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div>
-            <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '0.5px' }}>
-              EDIT ORDER <span style={{ backgroundColor: 'var(--gold-bg, rgba(197, 160, 89, 0.15))', color: 'var(--gold, #c5a059)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid var(--bdr, rgba(197, 160, 89, 0.3))' }}>INV-{orderNumStr}</span>
+            <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              EDIT ORDER <span style={{ backgroundColor: 'var(--gold-bg, rgba(197, 160, 89, 0.15))', color: 'var(--gold, #c5a059)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px' }}>INV-{orderNumStr}</span>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--txt2, #a1a1aa)', marginTop: '4px' }}>
               Modify order items, order type, payment details & comments
             </div>
           </div>
-          <button
-            onClick={onClose}
-            style={{ background: 'var(--surf2, rgba(128, 128, 128, 0.15))', border: 'none', color: 'var(--txt2, #a1a1aa)', cursor: 'pointer', padding: '6px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            aria-label="Close"
-          >
+          <button onClick={onClose} style={{ background: 'var(--surf2, rgba(128, 128, 128, 0.15))', border: 'none', color: 'var(--txt2, #a1a1aa)', cursor: 'pointer', padding: '6px', borderRadius: '8px' }}>
             <X size={18} />
           </button>
         </div>
 
-        {/* Scrollable Content Container */}
         <div style={{ overflowY: 'auto', paddingRight: '4px', flex: 1, marginBottom: '16px' }}>
-
-          {/* Invoice Number Input */}
           <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label">
-              Invoice Number / رقم الفاتورة
-            </label>
+            <label className="section-label">Invoice Number / رقم الفاتورة</label>
             <input
               type="text"
               value={invoiceNumber}
               onChange={e => setInvoiceNumber(e.target.value)}
               className="adaptive-input"
               style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
-              placeholder="Enter invoice number..."
             />
           </div>
 
-          {/* 0. Order Type Selector */}
           <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label">
-              <Utensils size={14} /> Order Type / نوع الطلب
-            </label>
+            <label className="section-label"><Utensils size={14} /> Order Type / نوع الطلب</label>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                type="button"
-                className={`type-btn ${orderType === 'dine_in' ? 'active' : ''}`}
-                onClick={() => setOrderType('dine_in')}
-              >
-                <Utensils size={14} /> Dine-In / محلي
+              <button type="button" className={`type-btn ${orderType === 'dine_in' ? 'active' : ''}`} onClick={() => setOrderType('dine_in')}>
+                <Utensils size={14} /> Dine-In
               </button>
-              <button
-                type="button"
-                className={`type-btn ${orderType === 'takeaway' ? 'active' : ''}`}
-                onClick={() => setOrderType('takeaway')}
-              >
-                <ShoppingBag size={14} /> Takeaway / سفري
+              <button type="button" className={`type-btn ${orderType === 'takeaway' ? 'active' : ''}`} onClick={() => setOrderType('takeaway')}>
+                <ShoppingBag size={14} /> Takeaway
               </button>
-              <button
-                type="button"
-                className={`type-btn ${orderType === 'delivery' ? 'active' : ''}`}
-                onClick={() => setOrderType('delivery')}
-              >
-                <Truck size={14} /> Delivery / توصيل
+              <button type="button" className={`type-btn ${orderType === 'delivery' ? 'active' : ''}`} onClick={() => setOrderType('delivery')}>
+                <Truck size={14} /> Delivery
               </button>
             </div>
           </div>
 
-          {/* 1. Existing Items List */}
           <div className="adaptive-card" style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '14px', padding: '8px 12px' }}>
-            {items.length === 0 ? (
-              <div style={{ textAlign: 'center', color: 'var(--txt3, #a1a1aa)', padding: '24px 0', fontSize: '13px' }}>
-                No items in this order
-              </div>
-            ) : (
-              items.map((item, idx) => {
-                const uPrice = parseFloat(item.unit_price || item.price) || 0
-                const itemTotal = item.total_price || (item.quantity * uPrice)
-                return (
-                  <div
-                    key={idx}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 0',
-                      borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr, rgba(128, 128, 128, 0.15))'
-                    }}
-                  >
-                    <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                      <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--txt, inherit)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {item.product_name || item.name}
-                      </div>
-                      <div style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', marginTop: '2px' }}>
-                        AED {uPrice.toFixed(2)} each
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <div className="adaptive-input" style={{ display: 'flex', alignItems: 'center', borderRadius: '6px', padding: '2px' }}>
-                        <button
-                          onClick={() => handleQtyChange(idx, -1)}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          <Minus size={12} />
-                        </button>
-                        <span style={{ minWidth: '22px', textAlign: 'center', fontWeight: '700', fontSize: '12.5px', color: 'var(--txt, inherit)' }}>
-                          {item.quantity}
-                        </span>
-                        <button
-                          onClick={() => handleQtyChange(idx, 1)}
-                          style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                          <Plus size={12} />
-                        </button>
-                      </div>
-
-                      <div style={{ width: '70px', textAlign: 'right', fontWeight: '700', fontSize: '13px', color: 'var(--txt, inherit)' }}>
-                        AED {itemTotal.toFixed(2)}
-                      </div>
-
-                      {!isCashier && (
-                        <button
-                          onClick={() => handleRemoveItem(idx)}
-                          style={{ background: 'var(--red-bg, rgba(239, 68, 68, 0.15))', border: 'none', color: 'var(--red, #ef4444)', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                          title="Remove Item"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      )}
-                    </div>
+            {items.map((item, idx) => {
+              const uPrice = parseFloat(item.unit_price || item.price) || 0
+              const itemTotal = item.total_price || (item.quantity * uPrice)
+              return (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr, rgba(128, 128, 128, 0.15))' }}>
+                  <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+                    <div style={{ fontWeight: '600', fontSize: '13px' }}>{item.product_name || item.name}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)' }}>AED {uPrice.toFixed(2)} each</div>
                   </div>
-                )
-              })
-            )}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div className="adaptive-input" style={{ display: 'flex', alignItems: 'center', borderRadius: '6px', padding: '2px' }}>
+                      <button onClick={() => handleQtyChange(idx, -1)} style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '24px', cursor: 'pointer' }}><Minus size={12} /></button>
+                      <span style={{ minWidth: '22px', textAlign: 'center', fontWeight: '700', fontSize: '12.5px' }}>{item.quantity}</span>
+                      <button onClick={() => handleQtyChange(idx, 1)} style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '24px', cursor: 'pointer' }}><Plus size={12} /></button>
+                    </div>
+                    <div style={{ width: '70px', textAlign: 'right', fontWeight: '700', fontSize: '13px' }}>AED {itemTotal.toFixed(2)}</div>
+                    {!isCashier && (
+                      <button onClick={() => handleRemoveItem(idx)} style={{ background: 'var(--red-bg, rgba(239, 68, 68, 0.15))', border: 'none', color: 'var(--red, #ef4444)', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer' }}>
+                        <Trash2 size={13} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </div>
 
-          {/* 2. Add Product Box */}
           <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label">
-              <PackagePlus size={14} /> Add Product
-            </label>
+            <label className="section-label"><PackagePlus size={14} /> Add Product</label>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <select
-                value={selectedProductId}
-                onChange={e => setSelectedProductId(e.target.value)}
-                className="adaptive-input"
-                style={{ flex: 1, fontSize: '12.5px', borderRadius: '8px', padding: '8px 10px', outline: 'none' }}
-              >
+              <select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)} className="adaptive-input" style={{ flex: 1, fontSize: '12.5px', borderRadius: '8px', padding: '8px 10px' }}>
                 <option value="">Select product...</option>
                 {Object.keys(groupedProducts).map(catName => (
-                  <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`} style={{ color: 'var(--gold, #c5a059)', fontWeight: '700' }}>
+                  <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`}>
                     {groupedProducts[catName].map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}
-                      </option>
+                      <option key={p.id} value={p.id}>{p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}</option>
                     ))}
                   </optgroup>
                 ))}
               </select>
-              <input
-                type="number"
-                min="1"
-                value={addQty}
-                onChange={e => setAddQty(e.target.value)}
-                className="adaptive-input"
-                style={{ width: '55px', textAlign: 'center', padding: '8px 4px', borderRadius: '8px', outline: 'none', fontSize: '12.5px' }}
-              />
-              <button
-                onClick={handleAddNewItem}
-                className="btn-gold-custom"
-                style={{ padding: '8px 14px', fontSize: '12.5px' }}
-              >
-                Add
-              </button>
+              <input type="number" min="1" value={addQty} onChange={e => setAddQty(e.target.value)} className="adaptive-input" style={{ width: '55px', textAlign: 'center', padding: '8px 4px', borderRadius: '8px' }} />
+              <button onClick={handleAddNewItem} className="btn-gold-custom" style={{ padding: '8px 14px', fontSize: '12.5px' }}>Add</button>
             </div>
           </div>
 
-          {/* 3. Date & Time Settings */}
           <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label">
-              <Calendar size={14} /> Date & Time
-            </label>
+            <label className="section-label"><Calendar size={14} /> Date & Time</label>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <div>
-                <span style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', display: 'block', marginBottom: '4px' }}>Order Date</span>
-                <input
-                  type="date"
-                  value={orderDate}
-                  onChange={e => setOrderDate(e.target.value)}
-                  className="adaptive-input"
-                  style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
-                />
-              </div>
-              <div>
-                <span style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', display: 'block', marginBottom: '4px' }}>Order Time</span>
-                <input
-                  type="time"
-                  value={orderTime}
-                  onChange={e => setOrderTime(e.target.value)}
-                  className="adaptive-input"
-                  style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
-                />
-              </div>
+              <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '7px 10px', borderRadius: '8px' }} />
+              <input type="time" value={orderTime} onChange={e => setOrderTime(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '7px 10px', borderRadius: '8px' }} />
             </div>
           </div>
 
-          {/* 4. Payment Method & Received Amount */}
           <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label">
-              <CreditCard size={14} /> Payment Details
-            </label>
+            <label className="section-label"><CreditCard size={14} /> Payment Details</label>
             <div style={{ display: 'grid', gridTemplateColumns: paymentMethod === 'cash' ? '1fr 1fr' : '1fr', gap: '10px' }}>
-              <div>
-                <span style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', display: 'block', marginBottom: '4px' }}>Payment Method</span>
-                <select
-                  value={paymentMethod}
-                  onChange={e => setPaymentMethod(e.target.value)}
-                  className="adaptive-input"
-                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
-                >
-                  <option value="cash">Cash</option>
-                  <option value="visa">Card / Visa</option>
-                  <option value="unpaid">Unpaid</option>
-                </select>
-              </div>
-
+              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px' }}>
+                <option value="cash">Cash</option>
+                <option value="visa">Card / Visa</option>
+                <option value="unpaid">Unpaid</option>
+              </select>
               {paymentMethod === 'cash' && (
-                <div>
-                  <span style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', display: 'block', marginBottom: '4px' }}>Cash Received (AED)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={cashGiven}
-                    onChange={e => setCashGiven(e.target.value)}
-                    className="adaptive-input"
-                    style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
-                  />
-                </div>
+                <input type="number" step="0.01" placeholder="Cash Received" value={cashGiven} onChange={e => setCashGiven(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '7px 10px', borderRadius: '8px' }} />
               )}
             </div>
-
-            {paymentMethod === 'cash' && numericCashGiven > 0 && (
-              <div style={{ marginTop: '8px', fontSize: '12px', display: 'flex', justifyContent: 'space-between', color: 'var(--txt2, #a1a1aa)', background: 'var(--surf3, rgba(0,0,0,0.2))', padding: '6px 10px', borderRadius: '6px' }}>
-                <span>Change to return:</span>
-                <span style={{ fontWeight: '700', color: changeAmount >= 0 ? 'var(--gold, #c5a059)' : '#ef4444' }}>
-                  AED {changeAmount.toFixed(2)}
-                </span>
-              </div>
-            )}
           </div>
 
-          {/* 5. Comments & Order Notes */}
           <div className="adaptive-card" style={{ padding: '12px' }}>
-            <label className="section-label">
-              <MessageSquare size={14} /> Order Notes / Comments
-            </label>
-            <textarea
-              rows="2"
-              placeholder="Add order comments or special instructions..."
-              value={notes}
-              onChange={e => setNotes(e.target.value)}
-              className="adaptive-input"
-              style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none', resize: 'vertical' }}
-            />
+            <label className="section-label"><MessageSquare size={14} /> Order Notes</label>
+            <textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', resize: 'vertical' }} />
           </div>
-
         </div>
 
-        {/* Total Summary */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          paddingTop: '10px',
-          borderTop: '1px solid var(--bdr, rgba(128, 128, 128, 0.15))',
-          marginBottom: '16px'
-        }}>
-          <span style={{ fontSize: '13px', color: 'var(--txt2, #a1a1aa)', fontWeight: '500' }}>New Total Amount:</span>
-          <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)' }}>
-            AED {total.toFixed(2)}
-          </span>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid var(--bdr, rgba(128, 128, 128, 0.15))', marginBottom: '16px' }}>
+          <span style={{ fontSize: '13px', color: 'var(--txt2, #a1a1aa)' }}>New Total Amount:</span>
+          <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)' }}>AED {total.toFixed(2)}</span>
         </div>
 
-        {/* Actions */}
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="btn-cancel-custom"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSaveChanges}
-            disabled={saving}
-            className="btn-gold-custom"
-          >
-            {saving ? 'Saving...' : 'Save Changes'}
-          </button>
+          <button onClick={onClose} disabled={saving} className="btn-cancel-custom">Cancel</button>
+          <button onClick={handleSaveChanges} disabled={saving} className="btn-gold-custom">{saving ? 'Saving...' : 'Save Changes'}</button>
         </div>
-
       </div>
     </div>
   )

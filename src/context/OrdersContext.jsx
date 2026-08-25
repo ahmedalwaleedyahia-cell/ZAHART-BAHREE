@@ -11,7 +11,6 @@ export function OrdersProvider({ children }) {
   const { profile } = useAuth()
   const { settings } = useSettings()
 
-  // ---- Cart state ----
   const [cart, setCart] = useState([])
   const [paymentMethod, setPaymentMethod] = useState('cash')
   const [orderType, setOrderType] = useState('dine_in')
@@ -19,7 +18,6 @@ export function OrdersProvider({ children }) {
   const [orderNotes, setOrderNotes] = useState('')
   const [cashGiven, setCashGiven] = useState('')
 
-  // ---- Order history ----
   const [orders, setOrders] = useState([])
   const [todaySummary, setTodaySummary] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -120,36 +118,7 @@ export function OrdersProvider({ children }) {
 
     setProcessing(true)
 
-    const generateDailyInvoiceNumber = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('orders')
-          .select('invoice_number')
-          .order('created_at', { ascending: false })
-          .limit(1)
-
-        if (error || !data || data.length === 0 || !data[0].invoice_number) {
-          return '1'
-        }
-
-        const lastInv = data[0].invoice_number.toString()
-        const numericPart = parseInt(lastInv.replace(/\D/g, ''), 10)
-
-        if (isNaN(numericPart)) {
-          return '1'
-        }
-
-        return String(numericPart + 1).padStart(5, '0')
-      } catch (err) {
-        console.error('Error generating sequence:', err)
-        return '1'
-      }
-    }
-
-    const nextInvoiceNum = await generateDailyInvoiceNumber()
-
     const orderData = {
-      invoice_number: nextInvoiceNum,
       cashierName: profile?.full_name || 'Cashier',
       paymentMethod,
       orderType,
@@ -210,23 +179,6 @@ export function OrdersProvider({ children }) {
     }
   }
 
-  const updatePaymentMethod = useCallback(async (id, newMethod) => {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .update({ payment_method: newMethod })
-        .eq('id', id)
-        .select()
-
-      if (error) throw error
-
-      setOrders(prev => prev.map(o => o.id === id ? { ...o, payment_method: newMethod } : o))
-      return { data, error: null }
-    } catch (err) {
-      return { error: err.message || 'Failed to update payment method' }
-    }
-  }, [])
-
   const updateOrderItems = useCallback(async (orderId, newItems, newSubtotal, newTotal, newVatAmount = 0, newDiscountAmount = 0, extraUpdates = {}) => {
     try {
       const { error: deleteError } = await supabase
@@ -259,8 +211,7 @@ export function OrdersProvider({ children }) {
         vat_amount: newVatAmount,
         discount_amount: newDiscountAmount,
         items: formattedItems,
-        // التأكد من تحديث رقم الفاتورة بشكل صريح ومرن
-        invoice_number: extraUpdates.invoice_number !== undefined ? extraUpdates.invoice_number : undefined,
+        ...(extraUpdates.invoice_number !== undefined && { invoice_number: extraUpdates.invoice_number }),
         ...(extraUpdates.payment_method && { payment_method: extraUpdates.payment_method }),
         ...(extraUpdates.order_type && { order_type: extraUpdates.order_type }),
         ...(extraUpdates.notes !== undefined && { notes: extraUpdates.notes }),
@@ -311,7 +262,6 @@ export function OrdersProvider({ children }) {
     reload: loadOrders,
     updateOrderStatus,
     deleteOrder,
-    updatePaymentMethod,
     updateOrderItems,
   }
 
