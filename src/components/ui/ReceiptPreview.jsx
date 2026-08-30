@@ -6,24 +6,17 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
 
     const s = settings || {}
     const ts = fmtDateTime(order.created_at || order.time)
-<<<<<<< HEAD
-    const items = Array.isArray(order.items) ? order.items : []
-=======
-    const items = order.items || order.order_items || []
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
+    const items = Array.isArray(order.items) ? order.items : order.order_items || []
 
     const pm = (order.payment_method || order.payment || '').toLowerCase()
     const paymentMethodDisplay =
         pm === 'cash' ? 'Cash' :
             pm === 'unpaid' ? 'UNPAID / غير مدفوع' : 'Visa'
-<<<<<<< HEAD
-=======
 
     const ot = (order.order_type || 'dine_in').toLowerCase()
     const orderTypeDisplay =
         ot === 'takeaway' ? 'Safar / سفري' :
             ot === 'delivery' ? 'Delivery / توصيل' : 'Dine-In / محلي'
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 
     const subtotal = Number(order.subtotal || 0)
     const discountAmount = Number(order.discount_amount || order.discount || 0)
