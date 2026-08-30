@@ -26,7 +26,6 @@ const CAT_COLORS = {
   food: '#C9A96E',
   drinks: '#3B82F6',
   desserts: '#22C55E',
-  other: '#888888',
 }
 
 // ================= PERIODS =================
@@ -44,17 +43,17 @@ function safeCall(fn, ...args) {
   return fn(...args)
 }
 
-// ================= CATEGORY NORMALIZER =================
+// ================= CATEGORY NORMALIZER (Strictly Food, Drinks, Desserts) =================
 function normalizeCategory(category) {
-  if (!category) return 'other'
+  if (!category) return 'food' // افتراضي آمن إذا لم يوجد تصنيف
 
   const c = String(category).trim().toLowerCase()
 
-  if (c === 'food' || c === 'foods') return 'food'
-  if (c === 'drink' || c === 'drinks') return 'drinks'
-  if (c === 'dessert' || c === 'desserts') return 'desserts'
+  if (c.includes('drink') || c.includes('beverage')) return 'drinks'
+  if (c.includes('dessert') || c.includes('sweet')) return 'desserts'
 
-  return 'other'
+  // افتراضي بقية الأطباق والمأكولات تحت التصنيف الرئيسي food
+  return 'food'
 }
 
 // ================= COMPONENT =================
@@ -68,7 +67,6 @@ export default function AnalyticsPage() {
   const { availableProducts } = useProducts()
   const { orders } = useOrders()
 
-  // خريطة لربط المنتجات بفئاتها بدقة متناهية بناءً على النظام المحدث
   const productCategoryMap = useMemo(() => {
     const map = {}
     if (availableProducts) {
@@ -113,7 +111,6 @@ export default function AnalyticsPage() {
     return () => { alive = false }
   }, [period])
 
-  // فلترة الطلبات وفقاً للفترة الزمنية المحددة (الأيام) لضمان دقة الحسابات التراكمية والكروت
   const periodFilteredOrders = useMemo(() => {
     if (!orders) return []
     const days = PERIODS.find(p => p.key === period)?.days || 7
@@ -162,7 +159,6 @@ export default function AnalyticsPage() {
     [periodFilteredOrders]
   )
 
-  // ================= CARDS =================
   const unifiedAnalyticsCards = useMemo(() => ([
     {
       id: 'an-rev',
@@ -194,11 +190,10 @@ export default function AnalyticsPage() {
     }
   ]), [totalRev, totalOrds, cashRev, visaRev])
 
-  // ================= CATEGORY DATA (Accurate Calculation) =================
+  // ================= CATEGORY DATA (Strictly Food, Drinks, Desserts) =================
   const catDonutData = useMemo(() => {
-    const grouped = { food: 0, drinks: 0, desserts: 0, other: 0 }
+    const grouped = { food: 0, drinks: 0, desserts: 0 }
 
-    // الاعتماد المباشر على تفاصيل الأصناف داخل الطلبات لضمان حساب دقيق ومطابق لصفحة التقارير اليومية
     if (periodFilteredOrders.length > 0) {
       periodFilteredOrders.forEach(order => {
         if ((order.payment_method || '').toLowerCase() === 'unpaid') return
@@ -211,30 +206,30 @@ export default function AnalyticsPage() {
           if (grouped[catSlug] !== undefined) {
             grouped[catSlug] += lineTotal
           } else {
-            grouped.other += lineTotal
+            grouped.food += lineTotal // توجيه أي شيء غير متوقع إلى food افتراضياً
           }
         })
       })
     } else if (categoryData?.length) {
-      // Fallback في حال الاعتماد على الـ API مباشرة إذا لم توجد طلبات في الـ Context
       categoryData.forEach(item => {
         const key = normalizeCategory(item.category)
-        grouped[key] = (grouped[key] || 0) + Number(item.revenue || 0)
+        if (grouped[key] !== undefined) {
+          grouped[key] += Number(item.revenue || 0)
+        } else {
+          grouped.food += Number(item.revenue || 0)
+        }
       })
     }
 
-    const result = Object.entries(grouped)
+    return Object.entries(grouped)
       .filter(([_, value]) => value > 0)
       .map(([key, value]) => ({
         label: key,
         value,
-        color: CAT_COLORS[key] || CAT_COLORS.other,
+        color: CAT_COLORS[key] || '#C9A96E',
       }))
-
-    return result
   }, [periodFilteredOrders, productCategoryMap, categoryData])
 
-  // ================= HOURLY (FIXED MATCHING) =================
   const hourlyChartData = useMemo(() => {
     const customHourOrder = [
       7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
@@ -261,7 +256,6 @@ export default function AnalyticsPage() {
     });
   }, [hourly]);
 
-  // ================= TREND =================
   const trendData = useMemo(() =>
     dailyData.map(d => {
       let label = d.sale_date
@@ -283,11 +277,9 @@ export default function AnalyticsPage() {
 
   const hasPaymentData = cashRev > 0 || visaRev > 0
 
-  // ================= UI =================
   return (
     <div className="scroll-view">
 
-      {/* PERIOD SELECTOR */}
       <div style={{
         display: 'flex',
         justifyContent: 'flex-end',
@@ -321,13 +313,11 @@ export default function AnalyticsPage() {
         </div>
       </div>
 
-      {/* CARDS */}
       <UnifiedStatCards
         cards={unifiedAnalyticsCards}
         loading={loading}
       />
 
-      {/* CATEGORY + PAYMENT */}
       <div className="two-col" style={{ marginBottom: 14 }}>
 
         <div className="card">
@@ -370,7 +360,6 @@ export default function AnalyticsPage() {
 
       </div>
 
-      {/* HOURLY */}
       <div className="card">
         <div className="card-header">
           <span className="card-title">
@@ -389,7 +378,6 @@ export default function AnalyticsPage() {
         )}
       </div>
 
-      {/* TREND */}
       <div className="card" style={{ marginTop: 14 }}>
         <div className="card-header">
           <span className="card-title">
