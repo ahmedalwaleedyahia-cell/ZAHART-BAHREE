@@ -6,30 +6,34 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
 
     const s = settings || {}
     const ts = fmtDateTime(order.created_at || order.time)
+<<<<<<< HEAD
     const items = Array.isArray(order.items) ? order.items : []
+=======
+    const items = order.items || order.order_items || []
+>>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 
     const pm = (order.payment_method || order.payment || '').toLowerCase()
     const paymentMethodDisplay =
         pm === 'cash' ? 'Cash' :
             pm === 'unpaid' ? 'UNPAID / غير مدفوع' : 'Visa'
+<<<<<<< HEAD
+=======
+
+    const ot = (order.order_type || 'dine_in').toLowerCase()
+    const orderTypeDisplay =
+        ot === 'takeaway' ? 'Safar / سفري' :
+            ot === 'delivery' ? 'Delivery / توصيل' : 'Dine-In / محلي'
+>>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 
     const subtotal = Number(order.subtotal || 0)
-
-    const discountAmount = Number(
-        order.discount_amount ||
-        order.discount ||
-        0
-    )
-
+    const discountAmount = Number(order.discount_amount || order.discount || 0)
     const discountPercent =
         discountAmount > 0 && subtotal > 0
             ? ((discountAmount / subtotal) * 100).toFixed(0)
             : 0
 
     const vatRate = Number(order.vat_rate ?? s.vat_rate ?? 0)
-
     const taxableAmount = Math.max(0, subtotal - discountAmount)
-
     const calculatedVat =
         vatRate > 0
             ? Number(order.vat_amount ?? (taxableAmount * (vatRate / 100)))
@@ -98,6 +102,11 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
             <div className="r-divider" />
 
             <div className="r-row">
+                <span>Type / النوع</span>
+                <span className="r-bold">{orderTypeDisplay}</span>
+            </div>
+
+            <div className="r-row">
                 <span>Invoice #</span>
                 <span className="r-bold">{order.invoice_number || order.order_number || '1'}</span>
             </div>
@@ -139,7 +148,7 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
                             </span>
                         </div>
 
-                        {nameAr && nameEn && (
+                        {nameAr && nameEn && nameAr !== nameEn && (
                             <div className="r-sub-line" style={{ fontSize: '10px', color: '#444', paddingLeft: '12px' }}>
                                 {nameEn}
                             </div>
@@ -153,6 +162,16 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
             })}
 
             <div className="r-divider" />
+
+            {order.notes && (
+                <>
+                    <div style={{ marginTop: '4px', marginBottom: '6px', fontSize: '11px', border: '1px dashed #000', padding: '4px 6px', borderRadius: '4px' }}>
+                        <span style={{ fontWeight: 'bold', display: 'block' }}>Notes / التعليق:</span>
+                        <span>{order.notes}</span>
+                    </div>
+                    <div className="r-divider" />
+                </>
+            )}
 
             <div className="r-row">
                 <span>Total Items / إجمالي القطع</span>

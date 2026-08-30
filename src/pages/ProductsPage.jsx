@@ -127,6 +127,7 @@ export default function ProductsPage({ showToast }) {
     reader.readAsDataURL(file)
   }
 
+  // في ملف src/pages/ProductsPage.jsx
   async function handleSave() {
     if (!form.name.trim()) { showToast?.('Product name is required', 'error'); return }
     if (!form.price || isNaN(+form.price)) { showToast?.('Valid price required', 'error'); return }
@@ -146,8 +147,16 @@ export default function ProductsPage({ showToast }) {
     const payload = { ...form, price: parseFloat(form.price), image_url: imageUrl }
     const res = editingId ? await editProduct(editingId, payload) : await addProduct(payload)
     setSaving(false)
+<<<<<<< HEAD
     if (res?.error) { showToast?.(res.error, 'error'); return }
     showToast?.(editingId ? 'Product updated!' : 'Product added!', 'success')
+=======
+    if (res.error) { showToast(res.error, 'error'); return }
+
+    showToast(editingId ? 'Product updated!' : 'Product added!', 'success')
+
+    // تنظيف المسودة بشكل مؤكد من localStorage
+>>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
     localStorage.removeItem('productDraft')
     closeModal()
   }

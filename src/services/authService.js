@@ -1,6 +1,5 @@
 import { supabase } from '../supabase/supabase.js'
 
-/* ───────────────────────── SESSION ───────────────────────── */
 export async function getSession() {
   const { data: { session } } = await supabase.auth.getSession()
 
@@ -24,16 +23,13 @@ export async function getSession() {
   }
 }
 
-/* ───────────────────────── AUTH LISTENER (FIXED) ───────────────────────── */
 export function onAuthStateChange(callback) {
   const { data } = supabase.auth.onAuthStateChange((event, session) => {
     callback(event, session)
   })
-
-  return data  
+  return data
 }
 
-/* ───────────────────────── LOGIN ───────────────────────── */
 export async function login({ email, password }) {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -46,7 +42,6 @@ export async function login({ email, password }) {
     }
 
     const user = data?.user
-
     if (!user) {
       return { user: null, profile: null, error: 'No user returned' }
     }
@@ -72,10 +67,8 @@ export async function login({ email, password }) {
   }
 }
 
-export const signIn = (email, password) =>
-  login({ email, password })
+export const signIn = (email, password) => login({ email, password })
 
-/* ───────────────────────── LOGOUT ───────────────────────── */
 export async function logout() {
   const { error } = await supabase.auth.signOut()
   return { error: error?.message || null }
@@ -83,7 +76,6 @@ export async function logout() {
 
 export const signOut = logout
 
-/* ───────────────────────── SIGN UP (ADMIN) ───────────────────────── */
 export async function signUp({ email, password, fullName }) {
   try {
     const { data, error } = await supabase.auth.signUp({
@@ -92,7 +84,7 @@ export async function signUp({ email, password, fullName }) {
       options: {
         data: {
           full_name: fullName,
-          role: 'admin' 
+          role: 'admin'
         }
       }
     })
@@ -105,19 +97,14 @@ export async function signUp({ email, password, fullName }) {
   }
 }
 
-/* ───────────────────────── CREATE CASHIER (UPDATED) ───────────────────────── */
-export async function createCashierAccount({
-  fullName,
-  email,
-  password,
-}) {
+export async function createCashierAccount({ fullName, email, password }) {
   try {
     const { data: functionData, error: functionError } = await supabase.functions.invoke('create-cashier', {
       body: { email, password, fullName },
     })
 
     if (functionError) {
-      const errMessage = functionError.message || 'Failed to create cashier via server';
+      const errMessage = functionError.message || 'Failed to create cashier via server'
       return { data: null, error: errMessage }
     }
 
@@ -129,7 +116,6 @@ export async function createCashierAccount({
   }
 }
 
-/* ───────────────────────── FETCH PROFILES ───────────────────────── */
 export async function fetchAllProfiles() {
   const { data, error } = await supabase
     .from('profiles')
@@ -144,7 +130,6 @@ export async function fetchAllProfiles() {
   return { data: data ?? [], error: null }
 }
 
-/* ───────────────────────── DEACTIVATE ───────────────────────── */
 export async function deactivateUser(id) {
   const { data, error } = await supabase
     .from('profiles')

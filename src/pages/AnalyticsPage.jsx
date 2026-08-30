@@ -1,70 +1,69 @@
-import { useEffect, useState, useMemo } from 'react'
-import { TrendingUp, Clock3, PieChart, CreditCard } from 'lucide-react'
-import { fmtNum } from '../utils/format.js'
+import { useOrders } from '../context/OrdersContext.jsx'
+import { useProducts } from '../context/ProductsContext.jsx'
+import { useState, useEffect, useMemo } from 'react'
+import { fmtNum, fmtDateTime } from '../utils/format.js'
 
 import {
+  fetchBestSellers,
   fetchDailySales,
   fetchHourlySales,
   fetchCategoryBreakdown,
+  fetchYearSummary,
+  fetchTodaySummary,
+  fetchOrders
 } from '../services/orderService.js'
 
-import Skeleton from '../components/ui/Skeleton.jsx'
 import BarChart from '../components/ui/BarChart.jsx'
-import DonutChart from '../components/ui/DonutChart.jsx'
-import PaymentSplit from '../components/ui/PaymentSplit.jsx'
+import Skeleton from '../components/ui/Skeleton.jsx'
 import Empty from '../components/ui/Empty.jsx'
-import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
 import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
+import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
 
+import {
+  Clock3,
+  Package,
+  TrendingUp,
+  Inbox,
+  FileText,
+  AlertTriangle
+} from 'lucide-react'
+
+import '../styles/finance.css'
 import '../styles/unified-cards.css'
 
-const CAT_COLORS = {
-  food: '#C9A96E',
-  drinks: '#3B82F6',
-  desserts: '#22C55E',
-  other: '#888888',
+const getLocalDateString = (dateInput) => {
+  if (!dateInput) return ''
+  const d = new Date(dateInput)
+  if (isNaN(d.getTime())) return ''
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
-function safeCall(fn, ...args) {
-  if (typeof fn !== 'function') {
-    return Promise.resolve({ data: [], error: null })
-  }
+async function safeCall(fn, ...args) {
+  if (typeof fn !== 'function') return { data: [], error: null }
   return fn(...args)
 }
 
-function normalizeCategory(category) {
-  if (!category) return 'other'
+export default function DashboardPage() {
+  const { orders, loading: globalLoading } = useOrders()
+  const { products } = useProducts()
 
-  const c = String(category).trim().toLowerCase()
+  const [dateFrom, setDateFrom] = useState(() => getLocalDateString(new Date()))
+  const [dateTo, setDateTo] = useState(() => getLocalDateString(new Date()))
 
-  if (c === 'food' || c === 'foods') return 'food'
-  if (c === 'drink' || c === 'drinks') return 'drinks'
-  if (c === 'dessert' || c === 'desserts') return 'desserts'
-
-  return 'other'
-}
-
-export default function AnalyticsPage() {
-  const [dateFrom, setDateFrom] = useState(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - 6)
-    return d.toISOString().split('T')[0]
-  })
-
-  const [dateTo, setDateTo] = useState(() => {
-    return new Date().toISOString().split('T')[0]
-  })
-
-  const [dailyData, setDailyData] = useState([])
-  const [hourly, setHourly] = useState([])
-  const [categoryData, setCategoryData] = useState([])
-  const [loading, setLoading] = useState(true)
+  const [bestSellers, setBestSellers] = useState([])
+  const [weekData, setWeekData] = useState([])
+  const [recentOrders, setRecentOrders] = useState([])
+  const [chartsLoading, setChartsLoading] = useState(true)
 
   useEffect(() => {
-    let alive = true
+    let isActive = true
 
     const load = async () => {
-      setLoading(true)
+      setChartsLoading(true)
+      const options = { dateFrom, dateTo }
 
       try {
         const start = new Date(dateFrom)
@@ -74,81 +73,41 @@ export default function AnalyticsPage() {
           Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
         )
 
-        const filterObj = { dateFrom, dateTo }
-
-        const [d, h, c] = await Promise.all([
-          safeCall(fetchDailySales, diffDays, filterObj),
-          safeCall(fetchHourlySales, filterObj),
-          safeCall(fetchCategoryBreakdown, filterObj),
+        const [bs, wd, ro] = await Promise.all([
+          safeCall(fetchBestSellers, 5, options),
+          safeCall(fetchDailySales, diffDays, options),
+          safeCall(fetchOrders, { limit: 6, dateFrom, dateTo })
         ])
 
-        if (!alive) return
+        if (!isActive) return
 
-        if (Array.isArray(d?.data)) setDailyData(d.data)
-        if (Array.isArray(h?.data)) setHourly(h.data)
-        if (Array.isArray(c?.data)) setCategoryData(c.data)
+        if (Array.isArray(bs?.data)) setBestSellers(bs.data)
+        if (Array.isArray(wd?.data)) setWeekData(wd.data)
+        if (Array.isArray(ro?.data)) setRecentOrders(ro.data)
 
       } catch (err) {
-        console.error('[Analytics Error]', err)
+        console.error('[Dashboard Error]', err)
       } finally {
-        if (alive) setLoading(false)
+        if (isActive) setChartsLoading(false)
       }
     }
 
     load()
-    return () => { alive = false }
-  }, [dateFrom, dateTo])
+    return () => { isActive = false }
+  }, [orders?.length, dateFrom, dateTo])
 
-  const totalRev = useMemo(
-    () => dailyData.reduce((a, d) => a + Number(d.total_revenue || 0), 0),
-    [dailyData]
-  )
-
-  const totalOrds = useMemo(
-    () => dailyData.reduce((a, d) => a + Number(d.order_count || 0), 0),
-    [dailyData]
-  )
-
-  const cashRev = useMemo(
-    () => dailyData.reduce((a, d) => a + Number(d.cash_revenue || 0), 0),
-    [dailyData]
-  )
-
-  const visaRev = useMemo(
-    () => dailyData.reduce((a, d) => a + Number(d.visa_revenue || 0), 0),
-    [dailyData]
-  )
-
-  const unifiedAnalyticsCards = useMemo(() => ([
-    {
-      id: 'an-rev',
-      label: 'Revenue (Selected Range)',
-      value: `AED ${fmtNum(totalRev)}`,
-      type: 'revenue',
-      subtitle: `${dateFrom} to ${dateTo}`,
-    },
-    {
-      id: 'an-ord',
-      label: 'Total Orders',
-      value: totalOrds,
-      type: 'orders',
-      subtitle: 'Completed orders',
-    },
-    {
-      id: 'an-cash',
-      label: 'Cash Revenue',
-      value: `AED ${fmtNum(cashRev)}`,
-      type: 'avg_order',
-      subtitle: 'Cash payments',
-    },
-    {
-      id: 'an-visa',
-      label: 'Card Revenue',
-      value: `AED ${fmtNum(visaRev)}`,
-      type: 'vat',
-      subtitle: 'Card payments',
-    }
-  ]), [totalRev, totalOrds, cashRev, visaRev, dateFrom, dateTo])
+  const filteredOrders = useMemo(() => {
+    if (!orders) return []
+    return orders.filter(o => {
+      if (o.status === 'cancelled') return false
+      const rawDate = o.created_at || o.date
+      const orderDateStr = getLocalDateString(rawDate)
+      if (!orderDateStr) return false
+      if (dateFrom && orderDateStr < dateFrom) return false
+      if (dateTo && orderDateStr > dateTo) return false
+      return true
+    })
+  }, [orders, dateFrom, dateTo])
 
   const catDonutData = useMemo(() => {
     if (!categoryData?.length) return []
@@ -173,43 +132,36 @@ export default function AnalyticsPage() {
     const customHourOrder = [
       7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
       0, 1
-    ]
-
-    // بناء خريطة مسبقة لسرعة البحث
-    const hourlyMap = new Map()
-    hourly.forEach(i => {
-      if (i?.label) {
-        const cleanLabel = String(i.label).replace(/\s+/g, '').toLowerCase()
-        hourlyMap.set(cleanLabel, Number(i.revenue || 0))
-      }
-    })
-
+    ];
     return customHourOrder.map(hour => {
-      const ampm = hour >= 12 ? 'PM' : 'AM'
-      const displayHour = hour % 12 === 0 ? 12 : hour % 12
-      const hourLabel = `${displayHour} ${ampm}`
-      const cleanLocalLabel = hourLabel.replace(/\s+/g, '').toLowerCase()
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+      const hourLabel = `${displayHour} ${ampm}`;
+
+      const match = hourly.find(i => {
+        if (!i || !i.label) return false;
+        const cleanServerLabel = String(i.label).replace(/\s+/g, '').toLowerCase();
+        const cleanLocalLabel = hourLabel.replace(/\s+/g, '').toLowerCase();
+
+        return cleanServerLabel === cleanLocalLabel;
+      });
 
       return {
         label: hourLabel,
-        value: hourlyMap.get(cleanLocalLabel) || 0,
-      }
-    })
-  }, [hourly])
+        value: match ? Number(match.revenue || 0) : 0,
+      };
+    });
+  }, [hourly]);
 
   const trendData = useMemo(() =>
     dailyData.map(d => {
       let label = d.sale_date
 
       try {
-        if (d.sale_date) {
-          const [year, month, day] = d.sale_date.split('-')
-          const dateObj = new Date(year, month - 1, day)
-          label = dateObj.toLocaleDateString('en-AE', {
-            month: 'short',
-            day: 'numeric',
-          })
-        }
+        label = new Date(d.sale_date).toLocaleDateString('en-AE', {
+          month: 'short',
+          day: 'numeric',
+        })
       } catch { }
 
       return {
@@ -228,79 +180,75 @@ export default function AnalyticsPage() {
       <DashboardFilter
         dateFrom={dateFrom}
         dateTo={dateTo}
-        onFilterChange={({ dateFrom: newFrom, dateTo: newTo }) => {
-          setDateFrom(newFrom)
-          setDateTo(newTo)
+        onFilterChange={({ dateFrom, dateTo }) => {
+          setDateFrom(dateFrom)
+          setDateTo(dateTo)
         }}
       />
 
-      <UnifiedStatCards
-        cards={unifiedAnalyticsCards}
-        loading={loading}
-      />
+      <UnifiedStatCards cards={statCardsConfiguration} loading={globalLoading || chartsLoading} />
 
-      <div className="two-col" style={{ marginBottom: 14 }}>
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title">
-              <PieChart size={15} /> Category Revenue
-            </span>
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div className="card-header">
+          <span className="card-title" style={{ color: 'var(--amber)' }}><AlertTriangle size={16} /> Inventory Alerts</span>
+          <span className="card-badge">{alertProducts.length} alert{alertProducts.length !== 1 ? 's' : ''}</span>
+        </div>
+        {alertProducts.length === 0 ? (
+          <div style={{ padding: '10px 0', color: 'var(--txt3)', fontSize: '13px' }}>All tracked drink and dessert items are adequately stocked.</div>
+        ) : (
+          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+            {alertProducts.map(p => {
+              const isOut = p.category_slug === 'drinks' ? (p.current_stock || 0) <= 0 : (p.current_weight || 0) <= 0
+              const valueLabel = p.category_slug === 'drinks' ? `${p.current_stock || 0} left` : `${p.current_weight || 0} ${p.stock_unit || 'g'} left`
+              return (
+                <div key={p.id} className="list-row" style={{ justifyContent: 'space-linejoin' }}>
+                  <span style={{ fontWeight: '500' }}>{p.name_ar || p.name}</span>
+                  <span className="badge" style={{ backgroundColor: isOut ? 'var(--red-bg)' : 'var(--amber-bg)', color: isOut ? 'var(--red)' : 'var(--amber)' }}>
+                    {isOut ? '🔴 Out Of Stock' : '🟡 Low Stock'} ({valueLabel})
+                  </span>
+                </div>
+              )
+            })}
           </div>
+        )}
+      </div>
 
-          {loading ? (
-            <Skeleton rows={3} />
-          ) : catDonutData.length === 0 ? (
-            <Empty icon={<PieChart size={32} />} text="No category data" />
+      <div className="two-col" style={{ marginBottom: 16 }}>
+        <div className="card">
+          <div className="card-header"><span className="card-title"><Package size={15} /> Best Sellers</span></div>
+          {chartsLoading ? <Skeleton rows={5} /> : bestSellers.length === 0 ? (
+            <Empty icon={<Inbox size={32} />} text="No sales yet" />
           ) : (
-            <DonutChart data={catDonutData} />
+            bestSellers.map((b, i) => (
+              <div key={i} className="list-row">
+                <span>#{i + 1}</span>
+                <span>{b.product_name}</span>
+                <span>{b.total_qty} sold</span>
+              </div>
+            ))
           )}
         </div>
 
         <div className="card">
-          <div className="card-header">
-            <span className="card-title">
-              <CreditCard size={15} /> Payment Split
-            </span>
-          </div>
-
-          {loading ? (
-            <Skeleton rows={3} />
-          ) : !hasPaymentData ? (
-            <Empty icon={<CreditCard size={32} />} text="No payment data" />
+          <div className="card-header"><span className="card-title"><Clock3 size={15} /> Recent Orders</span></div>
+          {globalLoading || chartsLoading ? <Skeleton rows={5} /> : recentOrders.length === 0 ? (
+            <Empty icon={<FileText size={32} />} text="No orders" />
           ) : (
-            <PaymentSplit cash={cashRev} visa={visaRev} />
+            recentOrders.map(o => (
+              <div key={o.id} className="list-row">
+                <span>#{o.invoice_number || o.order_number || '1'}</span>
+                <span>{fmtDateTime(o.created_at)}</span>
+                <span>AED {fmtNum(o.total_amount)}</span>
+              </div>
+            ))
           )}
         </div>
       </div>
 
       <div className="card">
-        <div className="card-header">
-          <span className="card-title">
-            <Clock3 size={15} /> Revenue by Hour
-          </span>
-        </div>
-
-        {loading ? (
-          <Skeleton rows={3} />
-        ) : (
-          <BarChart data={hourlyChartData} height={200} color="#3B82F6" />
-        )}
+        <div className="card-header"><span className="card-title"><TrendingUp size={15} /> Sales Timeline</span></div>
+        <BarChart data={weekData.map(d => ({ label: d.sale_date, value: Number(d.total_revenue || 0) }))} color="#C9A96E" height={180} />
       </div>
-
-      <div className="card" style={{ marginTop: 14 }}>
-        <div className="card-header">
-          <span className="card-title">
-            <TrendingUp size={15} /> Daily Revenue Trend
-          </span>
-        </div>
-
-        {loading ? (
-          <Skeleton rows={3} />
-        ) : (
-          <BarChart data={trendData} height={200} color="#C9A96E" />
-        )}
-      </div>
-
     </div>
   )
 }

@@ -6,10 +6,6 @@ import { fmtNum, fmtDateTime } from '../utils/format.js'
 import {
   fetchBestSellers,
   fetchDailySales,
-  fetchHourlySales,
-  fetchCategoryBreakdown,
-  fetchYearSummary,
-  fetchTodaySummary,
   fetchOrders
 } from '../services/orderService.js'
 
@@ -31,7 +27,6 @@ import {
 import '../styles/finance.css'
 import '../styles/unified-cards.css'
 
-// دالة توحيد تحويل التاريخ للتوقيت المحلي للجهاز YYYY-MM-DD
 const getLocalDateString = (dateInput) => {
   if (!dateInput) return ''
   const d = typeof dateInput === 'string' && dateInput.includes('T')
@@ -47,9 +42,7 @@ const getLocalDateString = (dateInput) => {
 }
 
 async function safeCall(fn, ...args) {
-  if (typeof fn !== 'function') {
-    return { data: [], error: null }
-  }
+  if (typeof fn !== 'function') return { data: [], error: null }
   return fn(...args)
 }
 
@@ -57,15 +50,11 @@ export default function DashboardPage() {
   const { orders, loading: globalLoading } = useOrders()
   const { products } = useProducts()
 
-  // الضبط الافتراضي لتاريخ اليوم محلياً ليتطابق تماماً مع شاشة التقارير
   const [dateFrom, setDateFrom] = useState(() => getLocalDateString(new Date()))
   const [dateTo, setDateTo] = useState(() => getLocalDateString(new Date()))
 
   const [bestSellers, setBestSellers] = useState([])
   const [weekData, setWeekData] = useState([])
-  const [hourlyData, setHourlyData] = useState([])
-  const [categoryData, setCategoryData] = useState([])
-  const [dynamicSummary, setDynamicSummary] = useState(null)
   const [recentOrders, setRecentOrders] = useState([])
   const [chartsLoading, setChartsLoading] = useState(true)
 
@@ -84,13 +73,9 @@ export default function DashboardPage() {
           Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
         )
 
-        const [bs, wd, hd, cd, ys, ds, ro] = await Promise.all([
+        const [bs, wd, ro] = await Promise.all([
           safeCall(fetchBestSellers, 5, options),
           safeCall(fetchDailySales, diffDays, options),
-          safeCall(fetchHourlySales, options),
-          safeCall(fetchCategoryBreakdown, options),
-          safeCall(fetchYearSummary, options),
-          safeCall(fetchTodaySummary, options),
           safeCall(fetchOrders, { limit: 6, dateFrom, dateTo })
         ])
 
@@ -98,9 +83,6 @@ export default function DashboardPage() {
 
         if (Array.isArray(bs?.data)) setBestSellers(bs.data)
         if (Array.isArray(wd?.data)) setWeekData(wd.data)
-        if (Array.isArray(hd?.data)) setHourlyData(hd.data)
-        if (Array.isArray(cd?.data)) setCategoryData(cd.data)
-        if (ds?.data) setDynamicSummary(ds.data)
         if (Array.isArray(ro?.data)) setRecentOrders(ro.data)
 
       } catch (err) {
@@ -111,30 +93,22 @@ export default function DashboardPage() {
     }
 
     load()
-
-    return () => {
-      isActive = false
-    }
+    return () => { isActive = false }
   }, [orders?.length, dateFrom, dateTo])
 
-  // فلترة الطلبات بنفس المنطق الدقيق المتبع في DailyReports
   const filteredOrders = useMemo(() => {
     if (!Array.isArray(orders)) return []
     return orders.filter(o => {
       if (o.status === 'cancelled') return false
-
       const rawDate = o.created_at || o.date
       const orderDateStr = getLocalDateString(rawDate)
       if (!orderDateStr) return false
-
       if (dateFrom && orderDateStr < dateFrom) return false
       if (dateTo && orderDateStr > dateTo) return false
-
       return true
     })
   }, [orders, dateFrom, dateTo])
 
-  // حساب المبيعات والضرائب بنفس معادلة DailyReports
   const summary = useMemo(() => {
     let revenue = 0
     let vat = 0
@@ -161,45 +135,17 @@ export default function DashboardPage() {
     if (!Array.isArray(products)) return []
     return products.filter(p => {
       if (!p.inventory_enabled) return false
-      if (p.category_slug === 'drinks') {
-        return (p.current_stock || 0) <= (p.minimum_stock || 0)
-      }
-      if (p.category_slug === 'desserts') {
-        return (p.current_weight || 0) <= (p.minimum_stock || 0)
-      }
+      if (p.category_slug === 'drinks') return (p.current_stock || 0) <= (p.minimum_stock || 0)
+      if (p.category_slug === 'desserts') return (p.current_weight || 0) <= (p.minimum_stock || 0)
       return false
     })
   }, [products])
 
   const statCardsConfiguration = useMemo(() => ([
-    {
-      id: 'rev',
-      label: "Selected Revenue",
-      value: `AED ${fmtNum(summary.revenue)}`,
-      type: 'revenue',
-      subtitle: `${dateFrom} to ${dateTo}`
-    },
-    {
-      id: 'ord',
-      label: 'Filtered Orders',
-      value: summary.orders,
-      type: 'orders',
-      subtitle: 'Processed orders'
-    },
-    {
-      id: 'avg',
-      label: 'Avg Order',
-      value: `AED ${fmtNum(summary.avg)}`,
-      type: 'avg_order',
-      subtitle: 'Average ticket'
-    },
-    {
-      id: 'vat',
-      label: 'VAT Collected',
-      value: `AED ${fmtNum(summary.vat)}`,
-      type: 'vat',
-      subtitle: 'Selected range context'
-    },
+    { id: 'rev', label: "Selected Revenue", value: `AED ${fmtNum(summary.revenue)}`, type: 'revenue', subtitle: `${dateFrom} to ${dateTo}` },
+    { id: 'ord', label: 'Filtered Orders', value: summary.orders, type: 'orders', subtitle: 'Processed orders' },
+    { id: 'avg', label: 'Avg Order', value: `AED ${fmtNum(summary.avg)}`, type: 'avg_order', subtitle: 'Average ticket' },
+    { id: 'vat', label: 'VAT Collected', value: `AED ${fmtNum(summary.vat)}`, type: 'vat', subtitle: 'Selected range context' },
   ]), [summary, dateFrom, dateTo])
 
   return (
@@ -207,13 +153,12 @@ export default function DashboardPage() {
       <div className="greeting-bar">
         <div className="greeting-title">WELCOME TO ZAHART BAHREE.Pos</div>
         <div className="greeting-sub">
-          {new Date().toLocaleDateString('en-AE', {
-            weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
-          })}
+          {new Date().toLocaleDateString('en-AE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
           {' · Abu Dhabi, UAE'}
         </div>
       </div>
 
+<<<<<<< HEAD
       <DashboardFilter
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -222,14 +167,15 @@ export default function DashboardPage() {
           setDateTo(newTo)
         }}
       />
+=======
+      <DashboardFilter dateFrom={dateFrom} dateTo={dateTo} onFilterChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }} />
+>>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 
       <UnifiedStatCards cards={statCardsConfiguration} loading={globalLoading || chartsLoading} />
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-header">
-          <span className="card-title" style={{ color: 'var(--amber)' }}>
-            <AlertTriangle size={16} /> Inventory Alerts
-          </span>
+          <span className="card-title" style={{ color: 'var(--amber)' }}><AlertTriangle size={16} /> Inventory Alerts</span>
           <span className="card-badge">{alertProducts.length} alert{alertProducts.length !== 1 ? 's' : ''}</span>
         </div>
         {alertProducts.length === 0 ? (
@@ -239,7 +185,6 @@ export default function DashboardPage() {
             {alertProducts.map(p => {
               const isOut = p.category_slug === 'drinks' ? (p.current_stock || 0) <= 0 : (p.current_weight || 0) <= 0
               const valueLabel = p.category_slug === 'drinks' ? `${p.current_stock || 0} left` : `${p.current_weight || 0} ${p.stock_unit || 'g'} left`
-
               return (
                 <div key={p.id} className="list-row" style={{ justifyContent: 'space-between' }}>
                   <span style={{ fontWeight: '500' }}>{p.name_ar || p.name}</span>
@@ -255,9 +200,7 @@ export default function DashboardPage() {
 
       <div className="two-col" style={{ marginBottom: 16 }}>
         <div className="card">
-          <div className="card-header">
-            <span className="card-title"><Package size={15} /> Best Sellers</span>
-          </div>
+          <div className="card-header"><span className="card-title"><Package size={15} /> Best Sellers</span></div>
           {chartsLoading ? <Skeleton rows={5} /> : bestSellers.length === 0 ? (
             <Empty icon={<Inbox size={32} />} text="No sales yet" />
           ) : (
@@ -272,9 +215,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="card">
-          <div className="card-header">
-            <span className="card-title"><Clock3 size={15} /> Recent Orders</span>
-          </div>
+          <div className="card-header"><span className="card-title"><Clock3 size={15} /> Recent Orders</span></div>
           {globalLoading || chartsLoading ? <Skeleton rows={5} /> : recentOrders.length === 0 ? (
             <Empty icon={<FileText size={32} />} text="No orders" />
           ) : (
@@ -290,9 +231,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="card">
-        <div className="card-header">
-          <span className="card-title"><TrendingUp size={15} /> Sales Timeline</span>
-        </div>
+        <div className="card-header"><span className="card-title"><TrendingUp size={15} /> Sales Timeline</span></div>
         <BarChart data={weekData.map(d => ({ label: d.sale_date, value: Number(d.total_revenue || 0) }))} color="#C9A96E" height={180} />
       </div>
     </div>
