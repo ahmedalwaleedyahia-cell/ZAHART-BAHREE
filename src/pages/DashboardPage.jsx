@@ -6,7 +6,8 @@ import { fmtNum, fmtDateTime } from '../utils/format.js'
 import {
   fetchBestSellers,
   fetchDailySales,
-  fetchOrders
+  fetchOrders,
+  fetchHourlySales
 } from '../services/orderService.js'
 
 import BarChart from '../components/ui/BarChart.jsx'
@@ -54,7 +55,7 @@ export default function DashboardPage() {
   const [dateTo, setDateTo] = useState(() => getLocalDateString(new Date()))
 
   const [bestSellers, setBestSellers] = useState([])
-  const [weekData, setWeekData] = useState([])
+  const [timelineData, setTimelineData] = useState([])
   const [recentOrders, setRecentOrders] = useState([])
   const [chartsLoading, setChartsLoading] = useState(true)
 
@@ -73,7 +74,7 @@ export default function DashboardPage() {
           Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
         )
 
-        const [bs, wd, ro] = await Promise.all([
+        const [bs, ds, ro] = await Promise.all([
           safeCall(fetchBestSellers, 5, options),
           safeCall(fetchDailySales, diffDays, options),
           safeCall(fetchOrders, { limit: 6, dateFrom, dateTo })
@@ -82,7 +83,7 @@ export default function DashboardPage() {
         if (!isActive) return
 
         if (Array.isArray(bs?.data)) setBestSellers(bs.data)
-        if (Array.isArray(wd?.data)) setWeekData(wd.data)
+        if (Array.isArray(ds?.data)) setTimelineData(ds.data)
         if (Array.isArray(ro?.data)) setRecentOrders(ro.data)
 
       } catch (err) {
@@ -94,7 +95,7 @@ export default function DashboardPage() {
 
     load()
     return () => { isActive = false }
-  }, [orders?.length, dateFrom, dateTo])
+  }, [dateFrom, dateTo])
 
   const filteredOrders = useMemo(() => {
     if (!Array.isArray(orders)) return []
@@ -228,7 +229,7 @@ export default function DashboardPage() {
 
       <div className="card">
         <div className="card-header"><span className="card-title"><TrendingUp size={15} /> Sales Timeline</span></div>
-        <BarChart data={weekData.map(d => ({ label: d.sale_date, value: Number(d.total_revenue || 0) }))} color="#C9A96E" height={180} />
+        <BarChart data={timelineData.map(d => ({ label: d.sale_date, value: Number(d.total_revenue || 0) }))} color="#C9A96E" height={180} />
       </div>
     </div>
   )
