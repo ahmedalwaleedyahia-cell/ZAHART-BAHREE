@@ -1,14 +1,9 @@
-<<<<<<< HEAD
 // ============================================================
 // src/services/orderService.js
 // ============================================================
 
 import { supabase, TABLES, VIEWS } from '../supabase/supabase.js'
 
-=======
-import { supabase, TABLES } from '../supabase/supabase.js'
-
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 const formatUtcRange = (dateFrom, dateTo) => {
   const fromIso = dateFrom ? `${dateFrom}T00:00:00.000Z` : null
   const toIso = dateTo ? `${dateTo}T23:59:59.999Z` : null
@@ -66,7 +61,6 @@ export async function createOrder(orderData, items) {
     return { data: null, error: orderError?.message || 'Failed to create order record' }
   }
 
-<<<<<<< HEAD
   const inventoryUpdates = items
     .filter(item => item.product_id)
     .map(async (item) => {
@@ -100,7 +94,7 @@ export async function createOrder(orderData, items) {
     })
 
   await Promise.all(inventoryUpdates)
-=======
+
   let insertedItems = []
 
   if (formattedItems.length > 0) {
@@ -126,7 +120,6 @@ export async function createOrder(orderData, items) {
       insertedItems = insertedData
     }
   }
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 
   const finalItems = insertedItems.length > 0 ? insertedItems : formattedItems
 
@@ -140,7 +133,6 @@ export async function createOrder(orderData, items) {
   }
 }
 
-<<<<<<< HEAD
 export async function fetchOrders({
   limit = null,
   offset = 0,
@@ -149,9 +141,6 @@ export async function fetchOrders({
   dateFrom = null,
   dateTo = null,
 } = {}) {
-=======
-export async function fetchOrders({ limit = null, offset = 0, status = null, cashierId = null, dateFrom = null, dateTo = null } = {}) {
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
   let query = supabase
     .from(TABLES.ORDERS)
     .select(`*, order_items(*)`)
@@ -198,96 +187,6 @@ export async function fetchOrders({ limit = null, offset = 0, status = null, cas
   return { data: normalizedData, error: null }
 }
 
-<<<<<<< HEAD
-export async function fetchOrder(id) {
-=======
-export async function fetchTodaySummary() {
-  const today = new Date().toISOString().split('T')[0]
-  const { fromIso, toIso } = formatUtcRange(today, today)
-
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
-  const { data, error } = await supabase
-    .from(TABLES.ORDERS)
-    .select('total_amount, status')
-    .gte('created_at', fromIso)
-    .lte('created_at', toIso)
-
-  if (error) return { data: null, error: error.message }
-
-  const totalSales = (data || [])
-    .filter(o => o.status === 'completed')
-    .reduce((sum, o) => sum + Number(o.total_amount || 0), 0)
-
-  return {
-    data: {
-      totalSales,
-      ordersCount: data?.length || 0
-    },
-    error: null
-  }
-}
-
-<<<<<<< HEAD
-=======
-export async function fetchBestSellers(limit = 5, { dateFrom = null, dateTo = null } = {}) {
-  try {
-    let query = supabase.from(TABLES.ORDER_ITEMS).select(`product_name, quantity, orders!inner(created_at, status)`)
-
-    const { fromIso, toIso } = formatUtcRange(dateFrom, dateTo)
-    if (fromIso) query = query.gte('orders.created_at', fromIso)
-    if (toIso) query = query.lte('orders.created_at', toIso)
-
-    const { data, error } = await query
-    if (error) throw error
-
-    const map = {}
-      ; (data || []).forEach(item => {
-        if (item.orders?.status === 'cancelled') return
-        const name = item.product_name || 'Item'
-        map[name] = (map[name] || 0) + Number(item.quantity || 0)
-      })
-
-    const sorted = Object.keys(map)
-      .map(product_name => ({ product_name, total_qty: map[product_name] }))
-      .sort((a, b) => b.total_qty - a.total_qty)
-      .slice(0, limit)
-
-    return { data: sorted, error: null }
-  } catch (err) {
-    console.error('fetchBestSellers error:', err)
-    return { data: [], error: err.message }
-  }
-}
-
-export async function fetchDailySales(days = 7, { dateFrom = null, dateTo = null } = {}) {
-  try {
-    const { data, error } = await fetchOrders({ dateFrom, dateTo, limit: 2000 })
-    if (error) throw error
-
-    const map = {}
-      ; (data || []).forEach(o => {
-        if (o.status === 'cancelled') return
-        const dateStr = (o.created_at || '').split('T')[0]
-        if (!dateStr) return
-        map[dateStr] = (map[dateStr] || 0) + Number(o.total_amount || 0)
-      })
-
-    const result = Object.keys(map)
-      .sort()
-      .map(sale_date => ({ sale_date, total_revenue: map[sale_date] }))
-
-    return { data: result, error: null }
-  } catch (err) {
-    console.error('fetchDailySales error:', err)
-    return { data: [], error: err.message }
-  }
-}
-
-export async function fetchHourlySales() { return { data: [], error: null } }
-export async function fetchCategoryBreakdown() { return { data: [], error: null } }
-export async function fetchYearSummary() { return { data: [], error: null } }
-
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 export async function updateOrderStatus(id, status) {
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
@@ -300,7 +199,6 @@ export async function updateOrderStatus(id, status) {
   return { data, error: null }
 }
 
-<<<<<<< HEAD
 export async function fetchDailySales(days = 7, { dateFrom = null, dateTo = null } = {}) {
   let query = supabase.from(VIEWS.DAILY_SALES).select('*')
 
@@ -326,7 +224,7 @@ export async function fetchTodaySummary({ dateFrom = null, dateTo = null } = {})
 
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
-    .select('total_amount, vat_amount')
+    .select('total_amount, vat_amount, status')
     .eq('status', 'completed')
     .gte('created_at', fromIso)
     .lte('created_at', toIso)
@@ -341,6 +239,8 @@ export async function fetchTodaySummary({ dateFrom = null, dateTo = null } = {})
     data: {
       order_count: count,
       total_revenue: totalRev,
+      totalSales: totalRev,
+      ordersCount: count,
       avg_order_value: count > 0 ? totalRev / count : 0,
       total_vat: totalVat
     },
@@ -484,7 +384,6 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
   }
 }
 
-=======
 export async function deleteOrder(id) {
   await supabase.from(TABLES.ORDER_ITEMS).delete().eq('order_id', id)
   const { data, error } = await supabase.from(TABLES.ORDERS).delete().eq('id', id)
@@ -492,7 +391,6 @@ export async function deleteOrder(id) {
   return { data, error: null }
 }
 
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 export function subscribeToOrders({ onInsert, onUpdate } = {}) {
   const channelName = `orders-changes-${Date.now()}`
   return supabase
