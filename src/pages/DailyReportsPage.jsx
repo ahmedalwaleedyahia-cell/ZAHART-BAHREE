@@ -33,11 +33,6 @@ export default function DailyReportsPage() {
     const [startDate, setStartDate] = useState(() => getLocalDateString(new Date()))
     const [endDate, setEndDate] = useState(() => getLocalDateString(new Date()))
 
-<<<<<<< HEAD
-    // تصفية الطلبات المطبقة بدقة التوقيت المحلي
-    const filteredOrders = useMemo(() => {
-        if (!Array.isArray(orders)) return []
-=======
     // فلتر الفئات Selected Category Filter (all, food, drinks, desserts)
     const [selectedCat, setSelectedCat] = useState('all')
 
@@ -55,7 +50,6 @@ export default function DailyReportsPage() {
     // 1. تصفية الطلبات حسب التاريخ أولاً
     const dateFilteredOrders = useMemo(() => {
         if (!orders) return []
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 
         return orders.filter(order => {
             if (order.status === 'cancelled') return false
@@ -91,15 +85,9 @@ export default function DailyReportsPage() {
         let visaSales = 0
         let unpaidSales = 0
 
-<<<<<<< HEAD
-        filteredOrders.forEach(order => {
-            const amount = Number(order.total_amount || order.total || 0)
-            const method = String(order.payment_method || '').toLowerCase()
-=======
         dateFilteredOrders.forEach(order => {
             const method = (order.payment_method || '').toLowerCase()
             const items = order.items || []
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 
             let categoryAmountInOrder = 0
 
@@ -314,13 +302,8 @@ export default function DailyReportsPage() {
                                 </tr>
                             </thead>
                             <tbody>
-<<<<<<< HEAD
-                                {filteredOrders.map(order => {
-                                    const methodStr = String(order.payment_method || 'CASH').toLowerCase()
-=======
                                 {displayedOrders.map(order => {
                                     const methodStr = (order.payment_method || 'CASH').toLowerCase()
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
                                     const isUnpaid = methodStr === 'unpaid'
                                     const isVisa = methodStr === 'visa' || methodStr === 'card'
 
@@ -346,7 +329,7 @@ export default function DailyReportsPage() {
                                             </td>
                                             <td>
                                                 <span className={`badge ${isUnpaid ? 'badge-red' : isVisa ? 'badge-blue' : 'badge-green'}`}>
-                                                    {isUnpaid ? <AlertCircle size={11} /> : <CheckCircle size={11} />}
+                                                    {isUnpaid ? <AlertCircle size5={11} /> : <CheckCircle size={11} />}
                                                     {methodStr.toUpperCase()}
                                                 </span>
                                             </td>
