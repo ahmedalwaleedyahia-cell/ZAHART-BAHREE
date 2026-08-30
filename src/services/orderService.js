@@ -20,6 +20,16 @@ export async function createOrder(orderData, items) {
     const name = item.product_name || item.name || item.product_name_ar || item.name_ar || 'صنف'
     const nameAr = item.product_name_ar || item.name_ar || name
 
+    // معالجة آمنة للتصنيف لضمان حفظه كنص فقط (حل مشكلة كائنات الـ JSON)
+    let cat = 'food'
+    if (typeof item.category === 'string') {
+      cat = item.category
+    } else if (item.category && typeof item.category === 'object') {
+      cat = item.category.slug || item.category.name || 'food'
+    } else if (item.category_slug) {
+      cat = item.category_slug
+    }
+
     return {
       product_id: item.product_id || item.id || null,
       product_name: name,
@@ -28,11 +38,10 @@ export async function createOrder(orderData, items) {
       unit_price: price,
       quantity: qty,
       line_total: total,
-      category: item.category || 'food'
+      category: cat
     }
   })
 
-  // تم إزالة حقل items من هنا لأنه يُخزن حصراً في جدول order_items لتفادي خطأ 400
   const insertPayload = {
     cashier_id: user?.id,
     cashier_name: orderData.cashierName || user?.user_metadata?.full_name || 'Cashier',

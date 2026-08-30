@@ -23,7 +23,7 @@ function getItemName(item) {
 }
 
 export default function OrdersPage({ showToast }) {
-  const { orders, loading, deleteOrder, updateOrderStatus, reload } = useOrders()
+  const { orders, loading, deleteOrder, updateOrderItems, reload } = useOrders()
   const { products } = useProducts()
   const { isAdmin } = useAuth()
   const { settings } = useSettings()
@@ -86,13 +86,33 @@ body * {
   }
 
   async function handlePaymentChange(orderId, newMethod) {
-    // تحديث طريقة الدفع عبر تمرير الـ payload أو باستخدام التحديث المباشر المناسب
-    // هنا سنقوم بتحديث حالة الطلب أو الخصائص الأخرى إذا لزم
-    const { error } = await updateOrderStatus(orderId, 'completed')
-    if (error) {
-      showToast?.(error, 'error')
+    const targetOrder = orders.find(o => o.id === orderId)
+    if (!targetOrder) return
+
+    const currentItems = targetOrder.items || targetOrder.order_items || []
+    const subtotal = Number(targetOrder.subtotal || 0)
+    const totalAmount = Number(targetOrder.total_amount || 0)
+    const vatAmount = Number(targetOrder.vat_amount || 0)
+    const discountAmount = Number(targetOrder.discount_amount || 0)
+
+    const extraUpdates = {
+      payment_method: newMethod
+    }
+
+    const result = await updateOrderItems(
+      orderId,
+      currentItems,
+      subtotal,
+      totalAmount,
+      vatAmount,
+      discountAmount,
+      extraUpdates
+    )
+
+    if (result.error) {
+      showToast?.(result.error, 'error')
     } else {
-      showToast?.(`تم تحديث حالة الطلب`, 'success')
+      showToast?.(`تم تحديث طريقة الدفع إلى ${newMethod.toUpperCase()}`, 'success')
       if (typeof reload === 'function') reload()
     }
   }
@@ -213,16 +233,25 @@ body * {
                         </td>
                         <td style={{ fontSize: 12.5 }}>{o.cashier_name || '—'}</td>
                         <td>
-                          <span style={{
-                            padding: '4px 8px',
-                            borderRadius: '6px',
-                            fontSize: '12px',
-                            fontWeight: '700',
-                            backgroundColor: method === 'cash' ? 'rgba(34, 197, 94, 0.15)' : method === 'unpaid' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                            color: method === 'cash' ? '#22c55e' : method === 'unpaid' ? '#ef4444' : '#3b82f6',
-                          }}>
-                            {method.toUpperCase()}
-                          </span>
+                          <select
+                            value={method}
+                            onChange={(e) => handlePaymentChange(o.id, e.target.value)}
+                            style={{
+                              padding: '4px 8px',
+                              borderRadius: '6px',
+                              fontSize: '12px',
+                              fontWeight: '700',
+                              border: '1px solid currentColor',
+                              cursor: 'pointer',
+                              outline: 'none',
+                              backgroundColor: method === 'cash' ? 'rgba(34, 197, 94, 0.15)' : method === 'unpaid' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                              color: method === 'cash' ? '#22c55e' : method === 'unpaid' ? '#ef4444' : '#3b82f6',
+                            }}
+                          >
+                            <option value="cash" style={{ background: '#1e1e1e', color: '#fff' }}>CASH</option>
+                            <option value="visa" style={{ background: '#1e1e1e', color: '#fff' }}>VISA</option>
+                            <option value="unpaid" style={{ background: '#1e1e1e', color: '#fff' }}>UNPAID</option>
+                          </select>
                         </td>
                         <td className="time-cell">{fmtDateTime(o.created_at)}</td>
                         <td><strong>AED {fmtNum(o.total_amount || 0)}</strong></td>
