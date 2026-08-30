@@ -1,253 +1,348 @@
-import { useOrders } from '../context/OrdersContext.jsx'
-import { useProducts } from '../context/ProductsContext.jsx'
-import { useState, useEffect, useMemo } from 'react'
-import { fmtNum, fmtDateTime } from '../utils/format.js'
+import { useState, useMemo } from 'react'
+import { useOrders } from '../context/OrdersContext'
+import { useProducts } from '../context/ProductsContext'
+import { fmtNum } from '../utils/format.js'
+import { ShoppingBag, CheckCircle, AlertCircle, Layers, Utensils, Coffee, Cake } from 'lucide-react'
 
-import {
-  fetchBestSellers,
-  fetchDailySales,
-  fetchHourlySales,
-  fetchCategoryBreakdown,
-  fetchYearSummary,
-  fetchTodaySummary,
-  fetchOrders
-} from '../services/orderService.js'
-
-import BarChart from '../components/ui/BarChart.jsx'
-import Skeleton from '../components/ui/Skeleton.jsx'
-import Empty from '../components/ui/Empty.jsx'
-import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
 import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
-
-import {
-  Clock3,
-  Package,
-  TrendingUp,
-  Inbox,
-  FileText,
-  AlertTriangle
-} from 'lucide-react'
-
-import '../styles/finance.css'
+import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
 import '../styles/unified-cards.css'
 
+// دالة توحيد تحويل التاريخ للتوقيت المحلي للجهاز YYYY-MM-DD
 const getLocalDateString = (dateInput) => {
   if (!dateInput) return ''
-  const d = new Date(dateInput)
+  const d = typeof dateInput === 'string' && dateInput.includes('T')
+    ? new Date(dateInput)
+    : new Date(dateInput)
+
   if (isNaN(d.getTime())) return ''
+
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
-async function safeCall(fn, ...args) {
-  if (typeof fn !== 'function') return { data: [], error: null }
-  return fn(...args)
-}
+export default function AnalyticsPage() {
+  const { orders, loading: ordersLoading } = useOrders()
+  const { availableProducts, loading: productsLoading } = useProducts()
 
-export default function DashboardPage() {
-  const { orders, loading: globalLoading } = useOrders()
-  const { products } = useProducts()
+  const loading = ordersLoading || productsLoading
 
-  const [dateFrom, setDateFrom] = useState(() => getLocalDateString(new Date()))
-  const [dateTo, setDateTo] = useState(() => getLocalDateString(new Date()))
+  // الضبط الافتراضي لتاريخ اليوم محلياً
+  const [startDate, setStartDate] = useState(() => getLocalDateString(new Date()))
+  const [endDate, setEndDate] = useState(() => getLocalDateString(new Date()))
 
-  const [bestSellers, setBestSellers] = useState([])
-  const [weekData, setWeekData] = useState([])
-  const [recentOrders, setRecentOrders] = useState([])
-  const [chartsLoading, setChartsLoading] = useState(true)
+  // فلتر الفئات Selected Category Filter (all, food, drinks, desserts)
+  const [selectedCat, setSelectedCat] = useState('all')
 
-  useEffect(() => {
-    let isActive = true
-
-    const load = async () => {
-      setChartsLoading(true)
-      const options = { dateFrom, dateTo }
-
-      try {
-        const start = new Date(dateFrom)
-        const end = new Date(dateTo)
-        const diffDays = Math.max(
-          1,
-          Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
-        )
-
-        const [bs, wd, ro] = await Promise.all([
-          safeCall(fetchBestSellers, 5, options),
-          safeCall(fetchDailySales, diffDays, options),
-          safeCall(fetchOrders, { limit: 6, dateFrom, dateTo })
-        ])
-
-        if (!isActive) return
-
-        if (Array.isArray(bs?.data)) setBestSellers(bs.data)
-        if (Array.isArray(wd?.data)) setWeekData(wd.data)
-        if (Array.isArray(ro?.data)) setRecentOrders(ro.data)
-
-      } catch (err) {
-        console.error('[Dashboard Error]', err)
-      } finally {
-        if (isActive) setChartsLoading(false)
-      }
+  // خريطة لربط المنتجات بفئاتها
+  const productCategoryMap = useMemo(() => {
+    const map = {}
+    if (availableProducts) {
+      availableProducts.forEach(p => {
+        map[p.id] = p.category_slug || 'food'
+      })
     }
+    return map
+  }, [availableProducts])
 
-    load()
-    return () => { isActive = false }
-  }, [orders?.length, dateFrom, dateTo])
-
-  const filteredOrders = useMemo(() => {
+  // 1. تصفية الطلبات حسب التاريخ أولاً
+  const dateFilteredOrders = useMemo(() => {
     if (!orders) return []
-    return orders.filter(o => {
-      if (o.status === 'cancelled') return false
-      const rawDate = o.created_at || o.date
+
+    return orders.filter(order => {
+      if (order.status === 'cancelled') return false
+
+      const rawDate = order.created_at || order.date
       const orderDateStr = getLocalDateString(rawDate)
       if (!orderDateStr) return false
-      if (dateFrom && orderDateStr < dateFrom) return false
-      if (dateTo && orderDateStr > dateTo) return false
+
+      if (startDate && orderDateStr < startDate) return false
+      if (endDate && orderDateStr > endDate) return false
+
       return true
     })
-  }, [orders, dateFrom, dateTo])
+  }, [orders, startDate, endDate])
 
-  const catDonutData = useMemo(() => {
-    if (!categoryData?.length) return []
+  // 2. تصفية الطلبات المعروضة بناءً على الفئة المختارة
+  const displayedOrders = useMemo(() => {
+    if (selectedCat === 'all') return dateFilteredOrders
 
-    const grouped = categoryData.reduce((acc, item) => {
-      const key = normalizeCategory(item.category)
-      acc[key] = (acc[key] || 0) + Number(item.revenue || 0)
-      return acc
-    }, {})
+    return dateFilteredOrders.filter(order => {
+      const items = order.items || []
+      return items.some(item => {
+        const catSlug = productCategoryMap[item.product_id] || 'food'
+        return catSlug === selectedCat
+      })
+    })
+  }, [dateFilteredOrders, selectedCat, productCategoryMap])
 
-    const result = Object.entries(grouped).map(([key, value]) => ({
-      label: key,
-      value,
-      color: CAT_COLORS[key] || CAT_COLORS.other,
-    }))
+  // 3. حساب الإحصائيات المباشرة بناءً على الفئة المحددة لتتأثر بها الكروت فوراً
+  const stats = useMemo(() => {
+    let totalSales = 0
+    let cashSales = 0
+    let visaSales = 0
+    let unpaidSales = 0
 
-    if (result.every(r => r.value === 0)) return []
-    return result
-  }, [categoryData])
+    dateFilteredOrders.forEach(order => {
+      const method = (order.payment_method || '').toLowerCase()
+      const items = order.items || []
 
-  const hourlyChartData = useMemo(() => {
-    const customHourOrder = [
-      7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
-      0, 1
-    ];
-    return customHourOrder.map(hour => {
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-      const hourLabel = `${displayHour} ${ampm}`;
+      let categoryAmountInOrder = 0
 
-      const match = hourly.find(i => {
-        if (!i || !i.label) return false;
-        const cleanServerLabel = String(i.label).replace(/\s+/g, '').toLowerCase();
-        const cleanLocalLabel = hourLabel.replace(/\s+/g, '').toLowerCase();
-
-        return cleanServerLabel === cleanLocalLabel;
-      });
-
-      return {
-        label: hourLabel,
-        value: match ? Number(match.revenue || 0) : 0,
-      };
-    });
-  }, [hourly]);
-
-  const trendData = useMemo(() =>
-    dailyData.map(d => {
-      let label = d.sale_date
-
-      try {
-        label = new Date(d.sale_date).toLocaleDateString('en-AE', {
-          month: 'short',
-          day: 'numeric',
+      if (selectedCat === 'all') {
+        categoryAmountInOrder = Number(order.total_amount || order.total || 0)
+      } else {
+        items.forEach(item => {
+          const catSlug = productCategoryMap[item.product_id] || 'food'
+          if (catSlug === selectedCat) {
+            const lineTotal = Number(item.line_total || (Number(item.unit_price || item.price || 0) * Number(item.quantity || item.qty || 1)))
+            categoryAmountInOrder += lineTotal
+          }
         })
-      } catch { }
-
-      return {
-        label,
-        value: Number(d.total_revenue || d.revenue || 0),
       }
-    }),
-    [dailyData]
-  )
 
-  const hasPaymentData = cashRev > 0 || visaRev > 0
+      if (categoryAmountInOrder > 0) {
+        if (method === 'unpaid') {
+          unpaidSales += categoryAmountInOrder
+        } else {
+          totalSales += categoryAmountInOrder
+          if (method === 'cash') cashSales += categoryAmountInOrder
+          else if (method === 'visa' || method === 'card') visaSales += categoryAmountInOrder
+          else cashSales += categoryAmountInOrder
+        }
+      }
+    })
+
+    return {
+      totalSales,
+      cashSales,
+      visaSales,
+      unpaidSales,
+      count: displayedOrders.length
+    }
+  }, [dateFilteredOrders, selectedCat, productCategoryMap, displayedOrders])
+
+  const dailyCards = useMemo(() => ([
+    {
+      id: 'dr-paid',
+      label: 'Paid Revenue',
+      value: `AED ${fmtNum(stats.totalSales)}`,
+      type: 'revenue',
+      subtitle: selectedCat === 'all' ? 'Total completed sales' : `${selectedCat.toUpperCase()} revenue`
+    },
+    {
+      id: 'dr-cash',
+      label: 'Cash Sales',
+      value: `AED ${fmtNum(stats.cashSales)}`,
+      type: 'profit',
+      subtitle: 'Cash payments'
+    },
+    {
+      id: 'dr-visa',
+      label: 'Visa / Card Sales',
+      value: `AED ${fmtNum(stats.visaSales)}`,
+      type: 'salary',
+      subtitle: 'Electronic payments'
+    },
+    {
+      id: 'dr-unpaid',
+      label: 'Unpaid Sales',
+      value: `AED ${fmtNum(stats.unpaidSales)}`,
+      type: 'loss',
+      subtitle: 'Pending collection'
+    }
+  ]), [stats, selectedCat])
+
+  const handleFilterChange = ({ dateFrom, dateTo }) => {
+    setStartDate(dateFrom)
+    setEndDate(dateTo)
+  }
+
+  if (loading) {
+    return (
+      <div style={{ padding: 24, color: 'var(--txt3)', fontSize: '14px' }}>
+        Loading analytics...
+      </div>
+    )
+  }
 
   return (
     <div className="scroll-view">
-
-      <DashboardFilter
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        onFilterChange={({ dateFrom, dateTo }) => {
-          setDateFrom(dateFrom)
-          setDateTo(dateTo)
-        }}
-      />
-
-      <UnifiedStatCards cards={statCardsConfiguration} loading={globalLoading || chartsLoading} />
-
-      <div className="card" style={{ marginBottom: 16 }}>
-        <div className="card-header">
-          <span className="card-title" style={{ color: 'var(--amber)' }}><AlertTriangle size={16} /> Inventory Alerts</span>
-          <span className="card-badge">{alertProducts.length} alert{alertProducts.length !== 1 ? 's' : ''}</span>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+        <div>
+          <h1 className="page-title" style={{ margin: 0 }}>Analytics</h1>
+          <p className="page-sub">Comprehensive overview of sales, categories, and financial metrics</p>
         </div>
-        {alertProducts.length === 0 ? (
-          <div style={{ padding: '10px 0', color: 'var(--txt3)', fontSize: '13px' }}>All tracked drink and dessert items are adequately stocked.</div>
+
+        {/* --- الـ Custom Range وأزرار الفئات تحته مباشرة في نفس الجهة --- */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
+          <DashboardFilter
+            dateFrom={startDate}
+            dateTo={endDate}
+            onFilterChange={handleFilterChange}
+          />
+
+          {/* أزرار الفئات تحت التاريخ مباشرة */}
+          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setSelectedCat('all')}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                border: '1px solid',
+                transition: 'all 0.2s ease',
+                background: selectedCat === 'all' ? 'var(--gold)' : 'transparent',
+                borderColor: selectedCat === 'all' ? 'var(--gold)' : 'var(--border, #333)',
+                color: selectedCat === 'all' ? '#000' : 'var(--txt2)'
+              }}
+            >
+              <Layers size={13} /> All
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCat('food')}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                border: '1px solid',
+                transition: 'all 0.2s ease',
+                background: selectedCat === 'food' ? 'var(--gold)' : 'transparent',
+                borderColor: selectedCat === 'food' ? 'var(--gold)' : 'var(--border, #333)',
+                color: selectedCat === 'food' ? '#000' : 'var(--txt2)'
+              }}
+            >
+              <Utensils size={13} /> Food
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCat('drinks')}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                border: '1px solid',
+                transition: 'all 0.2s ease',
+                background: selectedCat === 'drinks' ? 'var(--gold)' : 'transparent',
+                borderColor: selectedCat === 'drinks' ? 'var(--gold)' : 'var(--border, #333)',
+                color: selectedCat === 'drinks' ? '#000' : 'var(--txt2)'
+              }}
+            >
+              <Coffee size={13} /> Drinks
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setSelectedCat('desserts')}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: '600',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                border: '1px solid',
+                transition: 'all 0.2s ease',
+                background: selectedCat === 'desserts' ? 'var(--gold)' : 'transparent',
+                borderColor: selectedCat === 'desserts' ? 'var(--gold)' : 'var(--border, #333)',
+                color: selectedCat === 'desserts' ? '#000' : 'var(--txt2)'
+              }}
+            >
+              <Cake size={13} /> Desserts
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <UnifiedStatCards cards={dailyCards} loading={loading} className="mb-4" />
+
+      <div className="card" style={{ marginTop: '20px' }}>
+        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span className="card-title">
+            <ShoppingBag size={17} style={{ color: 'var(--gold)' }} /> Orders Summary ({displayedOrders.length})
+          </span>
+        </div>
+
+        {displayedOrders.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--txt3)', fontSize: '13px' }}>
+            No orders found for the selected category/date range.
+          </div>
         ) : (
-          <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-            {alertProducts.map(p => {
-              const isOut = p.category_slug === 'drinks' ? (p.current_stock || 0) <= 0 : (p.current_weight || 0) <= 0
-              const valueLabel = p.category_slug === 'drinks' ? `${p.current_stock || 0} left` : `${p.current_weight || 0} ${p.stock_unit || 'g'} left`
-              return (
-                <div key={p.id} className="list-row" style={{ justifyContent: 'space-linejoin' }}>
-                  <span style={{ fontWeight: '500' }}>{p.name_ar || p.name}</span>
-                  <span className="badge" style={{ backgroundColor: isOut ? 'var(--red-bg)' : 'var(--amber-bg)', color: isOut ? 'var(--red)' : 'var(--amber)' }}>
-                    {isOut ? '🔴 Out Of Stock' : '🟡 Low Stock'} ({valueLabel})
-                  </span>
-                </div>
-              )
-            })}
+          <div style={{ overflowX: 'auto' }}>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>INVOICE #</th>
+                  <th>TIME</th>
+                  <th>PAYMENT METHOD</th>
+                  <th style={{ textAlign: 'right' }}>TOTAL (AED)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayedOrders.map(order => {
+                  const methodStr = (order.payment_method || 'CASH').toLowerCase()
+                  const isUnpaid = methodStr === 'unpaid'
+                  const isVisa = methodStr === 'visa' || methodStr === 'card'
+
+                  const rawTime = order.created_at || order.date
+                  const dateObj = new Date(rawTime)
+                  const isValidDate = !isNaN(dateObj.getTime())
+
+                  const formattedDate = isValidDate
+                    ? `${dateObj.toLocaleDateString('en-GB')} - ${dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+                    : '—'
+
+                  const invoiceNum = (order.invoice_number || order.order_number || order.id?.slice(0, 8) || '')
+                    .toString()
+                    .replace(/^#?/, '')
+
+                  return (
+                    <tr key={order.id}>
+                      <td style={{ fontWeight: '600', color: 'var(--gold)' }}>
+                        #{invoiceNum}
+                      </td>
+                      <td className="time-cell">
+                        {formattedDate}
+                      </td>
+                      <td>
+                        <span className={`badge ${isUnpaid ? 'badge-red' : isVisa ? 'badge-blue' : 'badge-green'}`}>
+                          {isUnpaid ? <AlertCircle size={11} /> : <CheckCircle size={11} />}
+                          {methodStr.toUpperCase()}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: '700', textAlign: 'right' }}>
+                        AED {fmtNum(order.total_amount || order.total || 0)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         )}
-      </div>
-
-      <div className="two-col" style={{ marginBottom: 16 }}>
-        <div className="card">
-          <div className="card-header"><span className="card-title"><Package size={15} /> Best Sellers</span></div>
-          {chartsLoading ? <Skeleton rows={5} /> : bestSellers.length === 0 ? (
-            <Empty icon={<Inbox size={32} />} text="No sales yet" />
-          ) : (
-            bestSellers.map((b, i) => (
-              <div key={i} className="list-row">
-                <span>#{i + 1}</span>
-                <span>{b.product_name}</span>
-                <span>{b.total_qty} sold</span>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="card">
-          <div className="card-header"><span className="card-title"><Clock3 size={15} /> Recent Orders</span></div>
-          {globalLoading || chartsLoading ? <Skeleton rows={5} /> : recentOrders.length === 0 ? (
-            <Empty icon={<FileText size={32} />} text="No orders" />
-          ) : (
-            recentOrders.map(o => (
-              <div key={o.id} className="list-row">
-                <span>#{o.invoice_number || o.order_number || '1'}</span>
-                <span>{fmtDateTime(o.created_at)}</span>
-                <span>AED {fmtNum(o.total_amount)}</span>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-
-      <div className="card">
-        <div className="card-header"><span className="card-title"><TrendingUp size={15} /> Sales Timeline</span></div>
-        <BarChart data={weekData.map(d => ({ label: d.sale_date, value: Number(d.total_revenue || 0) }))} color="#C9A96E" height={180} />
       </div>
     </div>
   )
