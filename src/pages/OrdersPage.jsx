@@ -71,15 +71,6 @@ body * {
 `
   })
 
-<<<<<<< HEAD
-  async function handleCancel(id) {
-    if (!confirm('Cancel this order?')) return
-    const { error } = await updateOrderStatus(id, 'cancelled')
-    if (error) {
-      showToast?.(error, 'error')
-    } else {
-      showToast?.('Order cancelled', 'info')
-=======
   async function confirmDeleteOrder() {
     if (!deletingOrder) return
     setIsDeleting(true)
@@ -91,7 +82,6 @@ body * {
       setDeletingOrder(null)
     } else {
       showToast?.(error || 'فشل حذف الطلب', 'error')
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
     }
   }
 
@@ -100,20 +90,12 @@ body * {
     if (error) {
       showToast?.(error, 'error')
     } else {
-<<<<<<< HEAD
-      showToast?.(`Payment method updated to ${newMethod.toUpperCase()}`, 'success')
-=======
       showToast?.(`تم تحديث طريقة الدفع إلى ${newMethod.toUpperCase()}`, 'success')
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
     }
   }
 
   const filteredOrders = useMemo(() => {
-<<<<<<< HEAD
-    if (!Array.isArray(orders)) return []
-=======
     if (!orders || !Array.isArray(orders)) return []
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
     if (!search.trim()) return orders
 
     const q = search.trim().toLowerCase().replace(/^#?/, '')
@@ -190,15 +172,9 @@ body * {
                 </thead>
                 <tbody>
                   {filteredOrders.map(o => {
-<<<<<<< HEAD
-                    const method = String(o.payment_method || 'cash').toLowerCase()
+                    const method = (o.payment_method || 'cash').toLowerCase()
                     const displayInv = (o.invoice_number || o.order_number || o.id?.slice(0, 8) || '0').toString().replace(/^#?/, '')
                     const itemList = Array.isArray(o.items) && o.items.length > 0 ? o.items : (o.order_items || [])
-
-=======
-                    const method = (o.payment_method || 'cash').toLowerCase()
-                    const itemList = o.items || o.order_items || []
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
                     return (
                       <tr
                         key={o.id}
@@ -206,7 +182,6 @@ body * {
                       >
                         <td>
                           <span className="order-num">
-<<<<<<< HEAD
                             INV-{displayInv.padStart(5, '0')}
                           </span>
                         </td>
@@ -230,25 +205,7 @@ body * {
                               )}
                             </>
                           ) : (
-                            <span style={{ opacity: 0.5, fontStyle: 'italic' }}>No items</span>
-=======
-                            INV-{String(o.invoice_number || o.order_number || 0).padStart(5, '0')}
-                          </span>
-                        </td>
-
-                        <td className="items-cell">
-                          {Array.isArray(itemList) && itemList.length > 0 ? (
-                            <>
-                              {itemList.slice(0, 2).map((i) => {
-                                const qty = i.quantity || i.qty || 1
-                                const name = i.product_name_ar || i.product_name || i.name_ar || i.name || i.title || 'صنف'
-                                return `${qty}× ${name}`
-                              }).join(', ')}
-                              {itemList.length > 2 && ` +${itemList.length - 2}`}
-                            </>
-                          ) : (
                             <span style={{ color: 'var(--txt3)', fontSize: '11px' }}>لا توجد عناصر</span>
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
                           )}
                         </td>
                         <td style={{ fontSize: 12.5 }}>{o.cashier_name || '—'}</td>
@@ -274,13 +231,8 @@ body * {
                           </select>
                         </td>
                         <td className="time-cell">{fmtDateTime(o.created_at)}</td>
-<<<<<<< HEAD
                         <td><strong>AED {fmtNum(o.total_amount || 0)}</strong></td>
-                        <td className="action-cell" style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'flex-end' }}>
-=======
-                        <td><strong>AED {fmtNum(o.total_amount)}</strong></td>
                         <td className="action-cell" style={{ display: 'flex', gap: '6px', alignItems: 'center', justifyContent: 'flex-end' }}>
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
                           <button
                             className="btn btn-ghost btn-sm"
                             onClick={() => setReceiptOrder(o)}
@@ -464,13 +416,8 @@ body * {
           onClose={() => setEditingOrder(null)}
           showToast={showToast}
           onOrderUpdated={() => {
-<<<<<<< HEAD
-            if (typeof fetchOrders === 'function') {
-              fetchOrders()
-=======
             if (typeof reload === 'function') {
               reload()
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
             }
           }}
         />
