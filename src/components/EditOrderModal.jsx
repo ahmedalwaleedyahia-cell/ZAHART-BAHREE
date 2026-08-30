@@ -1,11 +1,7 @@
 ﻿import { useState, useMemo, useEffect } from 'react'
 import { useOrders } from '../context/OrdersContext.jsx'
 import { useProducts } from '../context/ProductsContext.jsx'
-<<<<<<< HEAD
-import { Trash2, Plus, Minus, PackagePlus, X, Calendar, Clock, CreditCard, MessageSquare, DollarSign } from 'lucide-react'
-=======
 import { Trash2, Plus, Minus, PackagePlus, X, Calendar, CreditCard, MessageSquare, Utensils, ShoppingBag, Truck } from 'lucide-react'
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 
 function getCategoryName(product) {
   if (!product) return 'Other'
@@ -21,10 +17,6 @@ function getCategoryName(product) {
   return 'Other'
 }
 
-<<<<<<< HEAD
-// دالة تنسيق التاريخ للـ input: YYYY-MM-DD
-=======
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 function formatDateForInput(dateStr) {
   if (!dateStr) return new Date().toISOString().split('T')[0]
   const d = new Date(dateStr)
@@ -32,10 +24,6 @@ function formatDateForInput(dateStr) {
   return d.toISOString().split('T')[0]
 }
 
-<<<<<<< HEAD
-// دالة تنسيق الوقت للـ input: HH:mm
-=======
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 function formatTimeForInput(dateStr) {
   if (!dateStr) {
     const d = new Date()
@@ -50,10 +38,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
   const { updateOrderItems } = useOrders()
   const { products: ctxProducts } = useProducts()
 
-<<<<<<< HEAD
-  // استخدام قائمة المنتجات المتاحة من الـ context أو الـ props
-=======
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
   const products = (ctxProducts && ctxProducts.length > 0) ? ctxProducts : propProducts
 
   const [isCashier, setIsCashier] = useState(false)
@@ -67,10 +51,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
     }
   }, [])
 
-<<<<<<< HEAD
-  // 1. حالات عناصر الطلب
-=======
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
   const [items, setItems] = useState(() => {
     return (order?.items || order?.order_items || []).map(item => {
       const uPrice = parseFloat(item.unit_price || item.price) || 0
@@ -89,18 +69,11 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
     })
   })
 
-<<<<<<< HEAD
-  // 2. حالات التواريخ وطريقة الدفع والتعليقات
-  const initialDate = formatDateForInput(order?.created_at)
-  const initialTime = formatTimeForInput(order?.created_at)
-
-=======
   const initialDate = formatDateForInput(order?.created_at)
   const initialTime = formatTimeForInput(order?.created_at)
 
   const [invoiceNumber, setInvoiceNumber] = useState(order?.invoice_number || '')
   const [orderType, setOrderType] = useState(order?.order_type || 'dine_in')
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
   const [orderDate, setOrderDate] = useState(initialDate)
   const [orderTime, setOrderTime] = useState(initialTime)
   const [paymentMethod, setPaymentMethod] = useState(order?.payment_method || 'cash')
@@ -189,10 +162,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
   const tax = taxable * (taxRate / 100)
   const total = taxable + tax
 
-<<<<<<< HEAD
-  // حساب الباقي التلقائي
-=======
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
   const numericCashGiven = parseFloat(cashGiven) || 0
   const changeAmount = paymentMethod === 'cash' && numericCashGiven > 0 ? Math.max(0, numericCashGiven - total) : 0
 
@@ -221,18 +190,11 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
         }
       })
 
-<<<<<<< HEAD
-      // دمج التاريخ والوقت لتكوين كائن ISO الصحيح
-      const updatedCreatedAt = new Date(`${orderDate}T${orderTime}:00`).toISOString()
-
-      const orderPayloadUpdates = {
-=======
       const updatedCreatedAt = new Date(`${orderDate}T${orderTime}:00`).toISOString()
 
       const orderPayloadUpdates = {
         invoice_number: invoiceNumber.trim() || undefined,
         order_type: orderType,
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
         payment_method: paymentMethod,
         cash_given: paymentMethod === 'cash' ? (numericCashGiven || null) : null,
         change_amount: paymentMethod === 'cash' ? (changeAmount || null) : null,
@@ -266,10 +228,7 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
         tax: tax,
         total_amount: total,
         total: total,
-<<<<<<< HEAD
-=======
         order_type: orderType,
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
         payment_method: paymentMethod,
         cash_given: paymentMethod === 'cash' ? numericCashGiven : null,
         change_amount: paymentMethod === 'cash' ? changeAmount : null,
@@ -352,14 +311,9 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
           font-size: 13px !important;
           cursor: pointer !important;
         }
-<<<<<<< HEAD
-
         .btn-cancel-custom:hover {
           background-color: var(--surf2, rgba(128, 128, 128, 0.15)) !important;
         }
-
-=======
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
         .btn-gold-custom {
           background: var(--gold, linear-gradient(135deg, #c5a059 0%, #a37f3f 100%)) !important;
           color: #000000 !important;
@@ -370,10 +324,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
           font-size: 13px !important;
           cursor: pointer !important;
         }
-<<<<<<< HEAD
-
-=======
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
         .section-label {
           color: var(--gold, #c5a059);
           font-size: 11px;
@@ -388,22 +338,13 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
       `}</style>
 
       <div className="adaptive-modal-box" onClick={e => e.stopPropagation()}>
-<<<<<<< HEAD
-
-        {/* Header */}
-=======
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div>
             <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)', display: 'flex', alignItems: 'center', gap: '8px' }}>
               EDIT ORDER <span style={{ backgroundColor: 'var(--gold-bg, rgba(197, 160, 89, 0.15))', color: 'var(--gold, #c5a059)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px' }}>INV-{orderNumStr}</span>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--txt2, #a1a1aa)', marginTop: '4px' }}>
-<<<<<<< HEAD
-              Modify order items, payment details, date & comments
-=======
               Modify order items, order type, payment details & comments
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
             </div>
           </div>
           <button onClick={onClose} style={{ background: 'var(--surf2, rgba(128, 128, 128, 0.15))', border: 'none', color: 'var(--txt2, #a1a1aa)', cursor: 'pointer', padding: '6px', borderRadius: '8px' }}>
@@ -411,11 +352,33 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
           </button>
         </div>
 
-<<<<<<< HEAD
-        {/* Scrollable Content Container */}
         <div style={{ overflowY: 'auto', paddingRight: '4px', flex: 1, marginBottom: '16px' }}>
+          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
+            <label className="section-label">Invoice Number / رقم الفاتورة</label>
+            <input
+              type="text"
+              value={invoiceNumber}
+              onChange={e => setInvoiceNumber(e.target.value)}
+              className="adaptive-input"
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
+            />
+          </div>
 
-          {/* Existing Items List */}
+          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
+            <label className="section-label"><Utensils size={14} /> Order Type / نوع الطلب</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button type="button" className={`type-btn ${orderType === 'dine_in' ? 'active' : ''}`} onClick={() => setOrderType('dine_in')}>
+                <Utensils size={14} /> Dine-In
+              </button>
+              <button type="button" className={`type-btn ${orderType === 'takeaway' ? 'active' : ''}`} onClick={() => setOrderType('takeaway')}>
+                <ShoppingBag size={14} /> Takeaway
+              </button>
+              <button type="button" className={`type-btn ${orderType === 'delivery' ? 'active' : ''}`} onClick={() => setOrderType('delivery')}>
+                <Truck size={14} /> Delivery
+              </button>
+            </div>
+          </div>
+
           <div className="adaptive-card" style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '14px', padding: '8px 12px' }}>
             {items.length === 0 ? (
               <div style={{ textAlign: 'center', color: 'var(--txt3, #a1a1aa)', padding: '24px 0', fontSize: '13px' }}>
@@ -482,109 +445,8 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
                 )
               })
             )}
-=======
-        <div style={{ overflowY: 'auto', paddingRight: '4px', flex: 1, marginBottom: '16px' }}>
-          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label">Invoice Number / رقم الفاتورة</label>
-            <input
-              type="text"
-              value={invoiceNumber}
-              onChange={e => setInvoiceNumber(e.target.value)}
-              className="adaptive-input"
-              style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
-            />
           </div>
 
-          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label"><Utensils size={14} /> Order Type / نوع الطلب</label>
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button type="button" className={`type-btn ${orderType === 'dine_in' ? 'active' : ''}`} onClick={() => setOrderType('dine_in')}>
-                <Utensils size={14} /> Dine-In
-              </button>
-              <button type="button" className={`type-btn ${orderType === 'takeaway' ? 'active' : ''}`} onClick={() => setOrderType('takeaway')}>
-                <ShoppingBag size={14} /> Takeaway
-              </button>
-              <button type="button" className={`type-btn ${orderType === 'delivery' ? 'active' : ''}`} onClick={() => setOrderType('delivery')}>
-                <Truck size={14} /> Delivery
-              </button>
-            </div>
-          </div>
-
-          <div className="adaptive-card" style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '14px', padding: '8px 12px' }}>
-            {items.map((item, idx) => {
-              const uPrice = parseFloat(item.unit_price || item.price) || 0
-              const itemTotal = item.total_price || (item.quantity * uPrice)
-              return (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr, rgba(128, 128, 128, 0.15))' }}>
-                  <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                    <div style={{ fontWeight: '600', fontSize: '13px' }}>{item.product_name || item.name}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)' }}>AED {uPrice.toFixed(2)} each</div>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div className="adaptive-input" style={{ display: 'flex', alignItems: 'center', borderRadius: '6px', padding: '2px' }}>
-                      <button onClick={() => handleQtyChange(idx, -1)} style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '24px', cursor: 'pointer' }}><Minus size={12} /></button>
-                      <span style={{ minWidth: '22px', textAlign: 'center', fontWeight: '700', fontSize: '12.5px' }}>{item.quantity}</span>
-                      <button onClick={() => handleQtyChange(idx, 1)} style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '24px', cursor: 'pointer' }}><Plus size={12} /></button>
-                    </div>
-                    <div style={{ width: '70px', textAlign: 'right', fontWeight: '700', fontSize: '13px' }}>AED {itemTotal.toFixed(2)}</div>
-                    {!isCashier && (
-                      <button onClick={() => handleRemoveItem(idx)} style={{ background: 'var(--red-bg, rgba(239, 68, 68, 0.15))', border: 'none', color: 'var(--red, #ef4444)', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer' }}>
-                        <Trash2 size={13} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-
-          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label"><PackagePlus size={14} /> Add Product</label>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <select value={selectedProductId} onChange={e => setSelectedProductId(e.target.value)} className="adaptive-input" style={{ flex: 1, fontSize: '12.5px', borderRadius: '8px', padding: '8px 10px' }}>
-                <option value="">Select product...</option>
-                {Object.keys(groupedProducts).map(catName => (
-                  <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`}>
-                    {groupedProducts[catName].map(p => (
-                      <option key={p.id} value={p.id}>{p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}</option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-              <input type="number" min="1" value={addQty} onChange={e => setAddQty(e.target.value)} className="adaptive-input" style={{ width: '55px', textAlign: 'center', padding: '8px 4px', borderRadius: '8px' }} />
-              <button onClick={handleAddNewItem} className="btn-gold-custom" style={{ padding: '8px 14px', fontSize: '12.5px' }}>Add</button>
-            </div>
-          </div>
-
-          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label"><Calendar size={14} /> Date & Time</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-              <input type="date" value={orderDate} onChange={e => setOrderDate(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '7px 10px', borderRadius: '8px' }} />
-              <input type="time" value={orderTime} onChange={e => setOrderTime(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '7px 10px', borderRadius: '8px' }} />
-            </div>
-          </div>
-
-          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
-            <label className="section-label"><CreditCard size={14} /> Payment Details</label>
-            <div style={{ display: 'grid', gridTemplateColumns: paymentMethod === 'cash' ? '1fr 1fr' : '1fr', gap: '10px' }}>
-              <select value={paymentMethod} onChange={e => setPaymentMethod(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px' }}>
-                <option value="cash">Cash</option>
-                <option value="visa">Card / Visa</option>
-                <option value="unpaid">Unpaid</option>
-              </select>
-              {paymentMethod === 'cash' && (
-                <input type="number" step="0.01" placeholder="Cash Received" value={cashGiven} onChange={e => setCashGiven(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '7px 10px', borderRadius: '8px' }} />
-              )}
-            </div>
-          </div>
-
-          <div className="adaptive-card" style={{ padding: '12px' }}>
-            <label className="section-label"><MessageSquare size={14} /> Order Notes</label>
-            <textarea rows="2" value={notes} onChange={e => setNotes(e.target.value)} className="adaptive-input" style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', resize: 'vertical' }} />
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
-          </div>
-
-          {/* Add Product Box */}
           <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
             <label className="section-label">
               <PackagePlus size={14} /> Add Product
@@ -625,7 +487,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
             </div>
           </div>
 
-          {/* Date & Time Settings */}
           <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
             <label className="section-label">
               <Calendar size={14} /> Date & Time
@@ -654,7 +515,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
             </div>
           </div>
 
-          {/* Payment Method & Received Amount */}
           <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
             <label className="section-label">
               <CreditCard size={14} /> Payment Details
@@ -669,7 +529,7 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
                   style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
                 >
                   <option value="cash">Cash</option>
-                  <option value="card">Card / Visa</option>
+                  <option value="visa">Card / Visa</option>
                   <option value="unpaid">Unpaid</option>
                 </select>
               </div>
@@ -700,7 +560,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
             )}
           </div>
 
-          {/* Comments & Order Notes */}
           <div className="adaptive-card" style={{ padding: '12px' }}>
             <label className="section-label">
               <MessageSquare size={14} /> Order Notes / Comments
@@ -714,11 +573,8 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
               style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none', resize: 'vertical' }}
             />
           </div>
-
         </div>
 
-<<<<<<< HEAD
-        {/* Total Summary */}
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
@@ -731,11 +587,6 @@ export default function EditOrderModal({ order, products: propProducts = [], onC
           <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)' }}>
             AED {total.toFixed(2)}
           </span>
-=======
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '10px', borderTop: '1px solid var(--bdr, rgba(128, 128, 128, 0.15))', marginBottom: '16px' }}>
-          <span style={{ fontSize: '13px', color: 'var(--txt2, #a1a1aa)' }}>New Total Amount:</span>
-          <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)' }}>AED {total.toFixed(2)}</span>
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
         </div>
 
         <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
