@@ -32,6 +32,7 @@ export async function createOrder(orderData, items) {
     }
   })
 
+  // تم إزالة حقل items من هنا لأنه يُخزن حصراً في جدول order_items لتفادي خطأ 400
   const insertPayload = {
     cashier_id: user?.id,
     cashier_name: orderData.cashierName || user?.user_metadata?.full_name || 'Cashier',
@@ -46,8 +47,7 @@ export async function createOrder(orderData, items) {
     cash_given: orderData.cashGiven || null,
     change_amount: orderData.changeAmount || null,
     notes: orderData.notes || null,
-    status: 'completed',
-    items: formattedItems
+    status: 'completed'
   }
 
   const { data: order, error: orderError } = await supabase

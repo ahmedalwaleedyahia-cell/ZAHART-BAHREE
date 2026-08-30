@@ -5,13 +5,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 
-import {
-  TrendingUp,
-  Clock3,
-  PieChart,
-  CreditCard,
-  Check,
-} from 'lucide-react'
+import { TrendingUp, Clock3, PieChart, CreditCard } from 'lucide-react'
 
 import { fmtNum } from '../utils/format.js'
 
@@ -20,6 +14,7 @@ import { useOrders } from '../context/OrdersContext.jsx'
 
 import {
   fetchDailySales,
+  fetchHourlySales,
   fetchCategoryBreakdown,
 } from '../services/orderService.js'
 
@@ -48,10 +43,7 @@ const CAT_COLORS = {
 
 function safeCall(fn, ...args) {
   if (typeof fn !== 'function') {
-    return Promise.resolve({
-      data: [],
-      error: null,
-    })
+    return Promise.resolve({ data: [], error: null })
   }
 
   return fn(...args)
@@ -59,26 +51,19 @@ function safeCall(fn, ...args) {
 
 // ============================================================
 // CATEGORY NORMALIZER
+// Strictly Food, Drinks, Desserts
 // ============================================================
 
 function normalizeCategory(category) {
   if (!category) return 'food'
 
-  const c = String(category)
-    .trim()
-    .toLowerCase()
+  const c = String(category).trim().toLowerCase()
 
-  if (
-    c.includes('drink') ||
-    c.includes('beverage')
-  ) {
+  if (c.includes('drink') || c.includes('beverage')) {
     return 'drinks'
   }
 
-  if (
-    c.includes('dessert') ||
-    c.includes('sweet')
-  ) {
+  if (c.includes('dessert') || c.includes('sweet')) {
     return 'desserts'
   }
 
@@ -93,38 +78,52 @@ const formatDate = (date) => {
   return date.toISOString().split('T')[0]
 }
 
+const getCurrentDate = () => {
+  const now = new Date()
+
+  return {
+    year: now.getFullYear(),
+    month: now.getMonth(),
+  }
+}
+
 // ============================================================
 // COMPONENT
 // ============================================================
 
 export default function AnalyticsPage() {
 
-  // ==========================================================
+  // ----------------------------------------------------------
   // FILTER STATE
-  // ==========================================================
+  // ----------------------------------------------------------
+
+  const [activePreset, setActivePreset] = useState('all')
 
   const [customRange, setCustomRange] = useState({
     start: '',
     end: '',
   })
 
+  const [showCustom, setShowCustom] = useState(false)
+
   const [dateRange, setDateRange] = useState({
     dateFrom: null,
     dateTo: null,
   })
 
-  // ==========================================================
+  // ----------------------------------------------------------
   // DATA STATE
-  // ==========================================================
+  // ----------------------------------------------------------
 
   const [dailyData, setDailyData] = useState([])
+  const [hourly, setHourly] = useState([])
   const [categoryData, setCategoryData] = useState([])
 
   const [loading, setLoading] = useState(true)
 
-  // ==========================================================
+  // ----------------------------------------------------------
   // CONTEXT
-  // ==========================================================
+  // ----------------------------------------------------------
 
   const { availableProducts } = useProducts()
   const { orders } = useOrders()
@@ -134,46 +133,141 @@ export default function AnalyticsPage() {
   // ==========================================================
 
   const productCategoryMap = useMemo(() => {
+
     const map = {}
 
     if (availableProducts) {
-      availableProducts.forEach(product => {
-        map[product.id] = normalizeCategory(
-          product.category_slug ||
-          product.category
+
+      availableProducts.forEach(p => {
+
+        map[p.id] = normalizeCategory(
+          p.category_slug || p.category
         )
+
       })
+
     }
 
     return map
+
   }, [availableProducts])
+
+  // ==========================================================
+  // APPLY PRESET
+  // ==========================================================
+
+  const applyPreset = (presetType) => {
+
+    setActivePreset(presetType)
+    setShowCustom(false)
+
+    const now = new Date()
+
+    let dateFrom = null
+    let dateTo = null
+
+    // --------------------------------------------------------
+    // ALL TIME
+    // --------------------------------------------------------
+
+    if (presetType === 'all') {
+
+      dateFrom = null
+      dateTo = null
+
+    }
+
+    // --------------------------------------------------------
+    // CURRENT MONTH
+    // --------------------------------------------------------
+
+    else if (presetType === 'current_month') {
+
+      dateFrom = formatDate(
+        new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          1
+        )
+      )
+
+      dateTo = formatDate(
+        new Date(
+          now.getFullYear(),
+          now.getMonth() + 1,
+          0
+        )
+      )
+
+    }
+
+    // --------------------------------------------------------
+    // PREVIOUS MONTH
+    // --------------------------------------------------------
+
+    else if (presetType === 'previous_month') {
+
+      dateFrom = formatDate(
+        new Date(
+          now.getFullYear(),
+          now.getMonth() - 1,
+          1
+        )
+      )
+
+      dateTo = formatDate(
+        new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          0
+        )
+      )
+
+    }
+
+    // --------------------------------------------------------
+    // CURRENT YEAR
+    // --------------------------------------------------------
+
+    else if (presetType === 'current_year') {
+
+      dateFrom = `${now.getFullYear()}-01-01`
+      dateTo = `${now.getFullYear()}-12-31`
+
+    }
+
+    setDateRange({
+      dateFrom,
+      dateTo,
+    })
+
+  }
 
   // ==========================================================
   // CUSTOM RANGE
   // ==========================================================
 
   const handleCustomApply = (e) => {
+
     e.preventDefault()
 
-    if (
-      !customRange.start ||
-      !customRange.end
-    ) {
+    if (!customRange.start || !customRange.end) {
       return
     }
 
     // Prevent invalid range
-    if (
-      customRange.start >
-      customRange.end
-    ) {
+    if (customRange.start > customRange.end) {
       return
     }
+
+    setActivePreset('custom')
+    setShowCustom(false)
 
     setDateRange({
       dateFrom: customRange.start,
       dateTo: customRange.end,
     })
+
   }
 
   // ==========================================================
@@ -181,59 +275,65 @@ export default function AnalyticsPage() {
   // ==========================================================
 
   useEffect(() => {
+
     let alive = true
 
     const load = async () => {
+
       setLoading(true)
 
       try {
+
         const {
           dateFrom,
           dateTo,
         } = dateRange
 
-        const [dailyRes, categoryRes] =
-          await Promise.all([
-            safeCall(
-              fetchDailySales,
-              7,
-              {
-                dateFrom,
-                dateTo,
-              }
-            ),
+        const [d, h, c] = await Promise.all([
 
-            safeCall(
-              fetchCategoryBreakdown,
-              {
-                dateFrom,
-                dateTo,
-              }
-            ),
-          ])
+          safeCall(
+            fetchDailySales,
+            7,
+            {
+              dateFrom,
+              dateTo,
+            }
+          ),
+
+          safeCall(
+            fetchHourlySales,
+            {
+              dateFrom,
+              dateTo,
+            }
+          ),
+
+          safeCall(
+            fetchCategoryBreakdown,
+            {
+              dateFrom,
+              dateTo,
+            }
+          ),
+
+        ])
 
         if (!alive) return
 
-        if (
-          Array.isArray(
-            dailyRes?.data
-          )
-        ) {
-          setDailyData(
-            dailyRes.data
-          )
+        if (Array.isArray(d?.data)) {
+          setDailyData(d.data)
         } else {
           setDailyData([])
         }
 
-        if (
-          Array.isArray(
-            categoryRes?.data
-          )
-        ) {
-          setCategoryData(
-            categoryRes.data
-          )
+        if (Array.isArray(h?.data)) {
+          setHourly(h.data)
+        } else {
+          setHourly([])
+        }
+
+        if (Array.isArray(c?.data)) {
+          setCategoryData(c.data)
         } else {
           setCategoryData([])
         }
@@ -247,6 +347,7 @@ export default function AnalyticsPage() {
 
         if (alive) {
           setDailyData([])
+          setHourly([])
           setCategoryData([])
         }
 
@@ -257,6 +358,7 @@ export default function AnalyticsPage() {
         }
 
       }
+
     }
 
     load()
@@ -277,11 +379,9 @@ export default function AnalyticsPage() {
 
     return orders.filter(order => {
 
-      // Cancelled orders excluded
-      if (
-        String(order.status || '')
-          .toLowerCase() === 'cancelled'
-      ) {
+      // Keep original behavior:
+      // cancelled orders are excluded
+      if (order.status === 'cancelled') {
         return false
       }
 
@@ -293,14 +393,9 @@ export default function AnalyticsPage() {
         return false
       }
 
-      const orderDate =
-        new Date(rawDate)
+      const orderDate = new Date(rawDate)
 
-      if (
-        isNaN(
-          orderDate.getTime()
-        )
-      ) {
+      if (isNaN(orderDate.getTime())) {
         return false
       }
 
@@ -308,10 +403,7 @@ export default function AnalyticsPage() {
       // ALL TIME
       // ------------------------------------------------------
 
-      if (
-        !dateRange.dateFrom &&
-        !dateRange.dateTo
-      ) {
+      if (!dateRange.dateFrom && !dateRange.dateTo) {
         return true
       }
 
@@ -319,35 +411,24 @@ export default function AnalyticsPage() {
       // DATE RANGE
       // ------------------------------------------------------
 
-      const start =
-        dateRange.dateFrom
-          ? new Date(
-            `${dateRange.dateFrom}T00:00:00.000Z`
-          )
-          : null
+      const start = dateRange.dateFrom
+        ? new Date(`${dateRange.dateFrom}T00:00:00.000Z`)
+        : null
 
-      const end =
-        dateRange.dateTo
-          ? new Date(
-            `${dateRange.dateTo}T23:59:59.999Z`
-          )
-          : null
+      const end = dateRange.dateTo
+        ? new Date(`${dateRange.dateTo}T23:59:59.999Z`)
+        : null
 
-      if (
-        start &&
-        orderDate < start
-      ) {
+      if (start && orderDate < start) {
         return false
       }
 
-      if (
-        end &&
-        orderDate > end
-      ) {
+      if (end && orderDate > end) {
         return false
       }
 
       return true
+
     })
 
   }, [
@@ -356,193 +437,148 @@ export default function AnalyticsPage() {
   ])
 
   // ==========================================================
-  // REVENUE ORDERS
-  // ==========================================================
-
-  const revenueOrders = useMemo(() => {
-
-    return periodFilteredOrders.filter(
-      order => {
-
-        const paymentMethod =
-          String(
-            order.payment_method || ''
-          )
-            .trim()
-            .toLowerCase()
-
-        if (
-          paymentMethod === 'unpaid'
-        ) {
-          return false
-        }
-
-        return true
-      }
-    )
-
-  }, [periodFilteredOrders])
-
-  // ==========================================================
-  // TOTAL REVENUE
+  // METRICS
   // ==========================================================
 
   const totalRev = useMemo(
     () =>
-      revenueOrders.reduce(
-        (total, order) =>
-          total +
-          Number(
-            order.total_amount ??
-            order.total ??
-            0
-          ),
-        0
-      ),
-    [revenueOrders]
-  )
+      periodFilteredOrders.reduce((a, o) => {
 
-  // ==========================================================
-  // TOTAL ORDERS
-  // ==========================================================
+        if (
+          (o.payment_method || '')
+            .toLowerCase() === 'unpaid'
+        ) {
+          return a
+        }
+
+        return (
+          a +
+          Number(
+            o.total_amount ||
+            o.total ||
+            0
+          )
+        )
+
+      }, 0),
+    [periodFilteredOrders]
+  )
 
   const totalOrds = useMemo(
-    () =>
-      revenueOrders.length,
-    [revenueOrders]
+    () => periodFilteredOrders.length,
+    [periodFilteredOrders]
   )
-
-  // ==========================================================
-  // CASH REVENUE
-  // ==========================================================
 
   const cashRev = useMemo(
     () =>
-      revenueOrders.reduce(
-        (total, order) => {
+      periodFilteredOrders.reduce((a, o) => {
 
-          const method =
-            String(
-              order.payment_method || ''
+        const method =
+          (o.payment_method || '')
+            .toLowerCase()
+
+        if (method === 'unpaid') {
+          return a
+        }
+
+        if (method === 'cash' || !method) {
+
+          return (
+            a +
+            Number(
+              o.total_amount ||
+              o.total ||
+              0
             )
-              .trim()
-              .toLowerCase()
+          )
 
-          if (
-            method === 'cash' ||
-            !method
-          ) {
-            return (
-              total +
-              Number(
-                order.total_amount ??
-                order.total ??
-                0
-              )
-            )
-          }
+        }
 
-          return total
-        },
-        0
-      ),
-    [revenueOrders]
+        return a
+
+      }, 0),
+    [periodFilteredOrders]
   )
-
-  // ==========================================================
-  // VISA / CARD REVENUE
-  // ==========================================================
 
   const visaRev = useMemo(
     () =>
-      revenueOrders.reduce(
-        (total, order) => {
+      periodFilteredOrders.reduce((a, o) => {
 
-          const method =
-            String(
-              order.payment_method || ''
+        const method =
+          (o.payment_method || '')
+            .toLowerCase()
+
+        if (
+          method === 'visa' ||
+          method === 'card'
+        ) {
+
+          return (
+            a +
+            Number(
+              o.total_amount ||
+              o.total ||
+              0
             )
-              .trim()
-              .toLowerCase()
+          )
 
-          if (
-            method === 'visa' ||
-            method === 'card'
-          ) {
-            return (
-              total +
-              Number(
-                order.total_amount ??
-                order.total ??
-                0
-              )
-            )
-          }
+        }
 
-          return total
-        },
-        0
-      ),
-    [revenueOrders]
+        return a
+
+      }, 0),
+    [periodFilteredOrders]
   )
 
   // ==========================================================
   // UNIFIED ANALYTICS CARDS
   // ==========================================================
 
-  const unifiedAnalyticsCards =
-    useMemo(
-      () => [
-        {
-          id: 'an-rev',
-          label:
-            'Revenue (Selected Period)',
-          value:
-            `AED ${fmtNum(totalRev)}`,
-          type: 'revenue',
-          subtitle:
-            'Gross interval value',
-        },
+  const unifiedAnalyticsCards = useMemo(
+    () => ([
+      {
+        id: 'an-rev',
+        label: 'Revenue (Selected Period)',
+        value: `AED ${fmtNum(totalRev)}`,
+        type: 'revenue',
+        subtitle: 'Gross interval value',
+      },
 
-        {
-          id: 'an-ord',
-          label: 'Total Orders',
-          value: totalOrds,
-          type: 'orders',
-          subtitle:
-            'Paid orders',
-        },
+      {
+        id: 'an-ord',
+        label: 'Total Orders',
+        value: totalOrds,
+        type: 'orders',
+        subtitle: 'Completed orders',
+      },
 
-        {
-          id: 'an-cash',
-          label: 'Cash Revenue',
-          value:
-            `AED ${fmtNum(cashRev)}`,
-          type: 'avg_order',
-          subtitle:
-            'Cash payments',
-        },
+      {
+        id: 'an-cash',
+        label: 'Cash Revenue',
+        value: `AED ${fmtNum(cashRev)}`,
+        type: 'avg_order',
+        subtitle: 'Cash payments',
+      },
 
-        {
-          id: 'an-visa',
-          label: 'Card Revenue',
-          value:
-            `AED ${fmtNum(visaRev)}`,
-          type: 'vat',
-          subtitle:
-            'Card payments',
-        },
-      ],
-      [
-        totalRev,
-        totalOrds,
-        cashRev,
-        visaRev,
-      ]
-    )
+      {
+        id: 'an-visa',
+        label: 'Card Revenue',
+        value: `AED ${fmtNum(visaRev)}`,
+        type: 'vat',
+        subtitle: 'Card payments',
+      },
+    ]),
+    [
+      totalRev,
+      totalOrds,
+      cashRev,
+      visaRev,
+    ]
+  )
 
   // ==========================================================
   // CATEGORY DATA
+  // Strictly Food, Drinks, Desserts
   // ==========================================================
 
   const catDonutData = useMemo(() => {
@@ -553,128 +589,96 @@ export default function AnalyticsPage() {
       desserts: 0,
     }
 
-    if (
-      periodFilteredOrders.length > 0
-    ) {
+    if (periodFilteredOrders.length > 0) {
 
-      periodFilteredOrders.forEach(
-        order => {
+      periodFilteredOrders.forEach(order => {
 
-          const paymentMethod =
-            String(
-              order.payment_method || ''
-            )
-              .trim()
-              .toLowerCase()
-
-          if (
-            paymentMethod === 'unpaid'
-          ) {
-            return
-          }
-
-          const items =
-            order.items ||
-            order.order_items ||
-            []
-
-          items.forEach(item => {
-
-            const catSlug =
-              productCategoryMap[
-              item.product_id
-              ] ||
-              normalizeCategory(
-                item.category ||
-                item.category_slug
-              )
-
-            const quantity =
-              Number(
-                item.quantity ??
-                item.qty ??
-                1
-              )
-
-            const unitPrice =
-              Number(
-                item.unit_price ??
-                item.price ??
-                0
-              )
-
-            const lineTotal =
-              Number(
-                item.line_total ??
-                quantity *
-                unitPrice
-              )
-
-            if (
-              grouped[
-              catSlug
-              ] !== undefined
-            ) {
-              grouped[
-                catSlug
-              ] += lineTotal
-            } else {
-              grouped.food +=
-                lineTotal
-            }
-
-          })
-
+        if (
+          (order.payment_method || '')
+            .toLowerCase() === 'unpaid'
+        ) {
+          return
         }
-      )
 
-    } else if (
-      categoryData?.length
-    ) {
+        const items =
+          order.items ||
+          order.order_items ||
+          []
 
-      categoryData.forEach(
-        item => {
+        items.forEach(item => {
 
-          const key =
+          const catSlug =
+            productCategoryMap[item.product_id] ||
             normalizeCategory(
-              item.category
+              item.category ||
+              item.category_slug
             )
 
-          if (
-            grouped[key] !== undefined
-          ) {
-            grouped[key] +=
-              Number(
-                item.revenue || 0
+          const lineTotal =
+            Number(
+              item.line_total ||
+              (
+                Number(
+                  item.unit_price ||
+                  item.price ||
+                  0
+                ) *
+                Number(
+                  item.quantity ||
+                  item.qty ||
+                  1
+                )
               )
+            )
+
+          if (grouped[catSlug] !== undefined) {
+
+            grouped[catSlug] += lineTotal
+
           } else {
-            grouped.food +=
-              Number(
-                item.revenue || 0
-              )
+
+            grouped.food += lineTotal
+
           }
 
+        })
+
+      })
+
+    } else if (categoryData?.length) {
+
+      categoryData.forEach(item => {
+
+        const key =
+          normalizeCategory(item.category)
+
+        if (grouped[key] !== undefined) {
+
+          grouped[key] += Number(
+            item.revenue || 0
+          )
+
+        } else {
+
+          grouped.food += Number(
+            item.revenue || 0
+          )
+
         }
-      )
+
+      })
 
     }
 
-    return Object.entries(
-      grouped
-    )
-      .filter(
-        ([, value]) =>
-          value > 0
-      )
-      .map(
-        ([key, value]) => ({
-          label: key,
-          value,
-          color:
-            CAT_COLORS[key] ||
-            '#C9A96E',
-        })
-      )
+    return Object.entries(grouped)
+      .filter(([_, value]) => value > 0)
+      .map(([key, value]) => ({
+        label: key,
+        value,
+        color:
+          CAT_COLORS[key] ||
+          '#C9A96E',
+      }))
 
   }, [
     periodFilteredOrders,
@@ -683,139 +687,88 @@ export default function AnalyticsPage() {
   ])
 
   // ==========================================================
-  // REVENUE BY HOUR
-  // ==========================================================
-  // IMPORTANT:
-  // We calculate the hourly revenue directly
-  // from OrdersContext instead of fetchHourlySales().
-  // This avoids problems with the hourly service/view.
+  // HOURLY CHART DATA
   // ==========================================================
 
-  const hourlyChartData =
-    useMemo(() => {
+  const hourlyChartData = useMemo(() => {
 
-      const hours = [
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        0,
-        1,
-      ]
+    const customHourOrder = [
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      0,
+      1,
+    ]
 
-      const totals = {}
+    return customHourOrder.map(hour => {
 
-      hours.forEach(
-        hour => {
-          totals[hour] = 0
-        }
-      )
+      const ampm =
+        hour >= 12
+          ? 'PM'
+          : 'AM'
 
-      revenueOrders.forEach(
-        order => {
+      const displayHour =
+        hour % 12 === 0
+          ? 12
+          : hour % 12
 
-          const rawDate =
-            order.created_at ||
-            order.date
+      const hourLabel =
+        `${displayHour} ${ampm}`
 
-          if (!rawDate) {
-            return
-          }
+      const match = hourly.find(i => {
 
-          const date =
-            new Date(rawDate)
+        if (!i) return false
 
-          if (
-            isNaN(
-              date.getTime()
-            )
-          ) {
-            return
-          }
+        const recordLabel =
+          String(
+            i.label ||
+            i.hour ||
+            ''
+          )
+            .trim()
+            .toLowerCase()
 
-          // --------------------------------------------------
-          // Convert UTC timestamp to UAE time
-          // --------------------------------------------------
+        return (
+          recordLabel ===
+          hourLabel.toLowerCase() ||
 
-          const dubaiParts =
-            new Intl.DateTimeFormat(
-              'en-US',
-              {
-                timeZone:
-                  'Asia/Dubai',
-                hour: 'numeric',
-                hour12: false,
-              }
-            ).formatToParts(date)
+          recordLabel ===
+          String(hour) ||
 
-          const hourPart =
-            dubaiParts.find(
-              part =>
-                part.type === 'hour'
-            )
+          recordLabel ===
+          `${hour}:00`
+        )
 
-          if (!hourPart) {
-            return
-          }
+      })
 
-          const hour =
-            Number(
-              hourPart.value
-            )
+      return {
+        label: hourLabel,
+        value: match
+          ? Number(
+            match.revenue ||
+            match.total_revenue ||
+            0
+          )
+          : 0,
+      }
 
-          if (
-            totals[hour] !== undefined
-          ) {
+    })
 
-            totals[hour] +=
-              Number(
-                order.total_amount ??
-                order.total ??
-                0
-              )
-          }
-
-        }
-      )
-
-      return hours.map(
-        hour => {
-
-          const displayHour =
-            hour % 12 === 0
-              ? 12
-              : hour % 12
-
-          const ampm =
-            hour >= 12
-              ? 'PM'
-              : 'AM'
-
-          return {
-            label:
-              `${displayHour} ${ampm}`,
-            value:
-              Number(
-                totals[hour] || 0
-              ),
-          }
-        }
-      )
-
-    }, [revenueOrders])
+  }, [hourly])
 
   // ==========================================================
   // DAILY REVENUE TREND
@@ -823,38 +776,34 @@ export default function AnalyticsPage() {
 
   const trendData = useMemo(
     () =>
-      dailyData.map(
-        item => {
+      dailyData.map(d => {
 
-          let label =
-            item.sale_date
+        let label = d.sale_date
 
-          try {
-            label =
-              new Date(
-                item.sale_date
-              ).toLocaleDateString(
-                'en-AE',
-                {
-                  month: 'short',
-                  day: 'numeric',
-                }
-              )
-          } catch {
-            // Keep original label
-          }
+        try {
 
-          return {
-            label,
-            value:
-              Number(
-                item.total_revenue ??
-                item.revenue ??
-                0
-              ),
-          }
+          label = new Date(
+            d.sale_date
+          ).toLocaleDateString(
+            'en-AE',
+            {
+              month: 'short',
+              day: 'numeric',
+            }
+          )
+
+        } catch { }
+
+        return {
+          label,
+          value: Number(
+            d.total_revenue ||
+            d.revenue ||
+            0
+          ),
         }
-      ),
+
+      }),
     [dailyData]
   )
 
@@ -871,11 +820,12 @@ export default function AnalyticsPage() {
   // ==========================================================
 
   return (
+
     <div className="scroll-view">
 
-      {/* ====================================================
-          CUSTOM RANGE FILTER ONLY
-          ==================================================== */}
+      {/* ======================================================
+          FILTER
+      ====================================================== */}
 
       <div
         className="dashboard-filter-container"
@@ -885,161 +835,322 @@ export default function AnalyticsPage() {
           flexWrap: 'wrap',
           gap: 12,
           alignItems: 'center',
-          background:
-            'var(--surf2, #ffffff)',
-          border:
-            '1px solid var(--bdr, #eee)',
+          background: 'var(--surf2, #ffffff)',
+          border: '1px solid var(--bdr, #eee)',
           padding: '12px',
           borderRadius: '14px',
         }}
       >
 
-        <form
-          onSubmit={
-            handleCustomApply
-          }
+        <div
           style={{
             display: 'flex',
-            alignItems: 'center',
             gap: 8,
+            alignItems: 'center',
             flexWrap: 'wrap',
-            width: '100%',
           }}
         >
 
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 7,
-              color:
-                'var(--txt1, #000000)',
-              fontSize: 13,
-              fontWeight: 600,
-            }}
-          >
-            <Clock3 size={15} />
-            Custom Range
-          </div>
-
-          <input
-            type="date"
-            value={
-              customRange.start
-            }
-            onChange={e =>
-              setCustomRange(
-                prev => ({
-                  ...prev,
-                  start:
-                    e.target.value,
-                })
-              )
-            }
-            required
-            style={{
-              background:
-                'var(--surf1, #ffffff)',
-              color:
-                'var(--txt1, #000000)',
-              border:
-                '1px solid var(--bdr, #ccc)',
-              borderRadius: 6,
-              padding:
-                '6px 8px',
-            }}
-          />
-
-          <span
-            style={{
-              color:
-                'var(--txt1, #000000)',
-              fontSize: 13,
-              fontWeight: 500,
-            }}
-          >
-            to
-          </span>
-
-          <input
-            type="date"
-            value={
-              customRange.end
-            }
-            min={
-              customRange.start ||
-              undefined
-            }
-            onChange={e =>
-              setCustomRange(
-                prev => ({
-                  ...prev,
-                  end:
-                    e.target.value,
-                })
-              )
-            }
-            required
-            style={{
-              background:
-                'var(--surf1, #ffffff)',
-              color:
-                'var(--txt1, #000000)',
-              border:
-                '1px solid var(--bdr, #ccc)',
-              borderRadius: 6,
-              padding:
-                '6px 8px',
-            }}
-          />
+          {/* ALL TIME */}
 
           <button
-            type="submit"
-            title="Apply Custom Range"
+            onClick={() => applyPreset('all')}
             style={{
               background:
-                'var(--gold, #C9A96E)',
+                activePreset === 'all'
+                  ? 'var(--gold, #C9A96E)'
+                  : 'transparent',
+
               color:
-                'var(--surf1, #000000)',
-              border: 'none',
-              borderRadius: 6,
-              padding:
-                '7px 12px',
+                activePreset === 'all'
+                  ? 'var(--surf1, #000000)'
+                  : 'var(--txt1, #000000)',
+
+              border:
+                activePreset === 'all'
+                  ? '1px solid var(--gold, #C9A96E)'
+                  : '1px solid var(--bdr, #ccc)',
+
+              fontWeight:
+                activePreset === 'all'
+                  ? '700'
+                  : '500',
+
+              padding: '6px 14px',
+              borderRadius: '6px',
               cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent:
-                'center',
-              fontWeight: 700,
+              transition: 'all 0.2s ease',
             }}
           >
-            <Check size={14} />
+            All Time
           </button>
 
-        </form>
+          {/* CURRENT MONTH */}
+
+          <button
+            onClick={() =>
+              applyPreset('current_month')
+            }
+            style={{
+              background:
+                activePreset === 'current_month'
+                  ? 'var(--gold, #C9A96E)'
+                  : 'transparent',
+
+              color:
+                activePreset === 'current_month'
+                  ? 'var(--surf1, #000000)'
+                  : 'var(--txt1, #000000)',
+
+              border:
+                activePreset === 'current_month'
+                  ? '1px solid var(--gold, #C9A96E)'
+                  : '1px solid var(--bdr, #ccc)',
+
+              fontWeight:
+                activePreset === 'current_month'
+                  ? '700'
+                  : '500',
+
+              padding: '6px 14px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            Current Month
+          </button>
+
+          {/* PREVIOUS MONTH */}
+
+          <button
+            onClick={() =>
+              applyPreset('previous_month')
+            }
+            style={{
+              background:
+                activePreset === 'previous_month'
+                  ? 'var(--gold, #C9A96E)'
+                  : 'transparent',
+
+              color:
+                activePreset === 'previous_month'
+                  ? 'var(--surf1, #000000)'
+                  : 'var(--txt1, #000000)',
+
+              border:
+                activePreset === 'previous_month'
+                  ? '1px solid var(--gold, #C9A96E)'
+                  : '1px solid var(--bdr, #ccc)',
+
+              fontWeight:
+                activePreset === 'previous_month'
+                  ? '700'
+                  : '500',
+
+              padding: '6px 14px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            Previous Month
+          </button>
+
+          {/* CURRENT YEAR */}
+
+          <button
+            onClick={() =>
+              applyPreset('current_year')
+            }
+            style={{
+              background:
+                activePreset === 'current_year'
+                  ? 'var(--gold, #C9A96E)'
+                  : 'transparent',
+
+              color:
+                activePreset === 'current_year'
+                  ? 'var(--surf1, #000000)'
+                  : 'var(--txt1, #000000)',
+
+              border:
+                activePreset === 'current_year'
+                  ? '1px solid var(--gold, #C9A96E)'
+                  : '1px solid var(--bdr, #ccc)',
+
+              fontWeight:
+                activePreset === 'current_year'
+                  ? '700'
+                  : '500',
+
+              padding: '6px 14px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            Current Year
+          </button>
+
+          {/* CUSTOM RANGE */}
+
+          <button
+            onClick={() =>
+              setShowCustom(!showCustom)
+            }
+            style={{
+              background:
+                activePreset === 'custom'
+                  ? 'var(--gold, #C9A96E)'
+                  : 'transparent',
+
+              color:
+                activePreset === 'custom'
+                  ? 'var(--surf1, #000000)'
+                  : 'var(--txt1, #000000)',
+
+              border:
+                activePreset === 'custom'
+                  ? '1px solid var(--gold, #C9A96E)'
+                  : '1px solid var(--bdr, #ccc)',
+
+              fontWeight:
+                activePreset === 'custom'
+                  ? '700'
+                  : '500',
+
+              padding: '6px 14px',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <Clock3 size={14} />
+            Custom Range
+          </button>
+
+        </div>
+
+        {/* ====================================================
+            CUSTOM RANGE FORM
+        ==================================================== */}
+
+        {showCustom && (
+
+          <form
+            onSubmit={handleCustomApply}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'var(--surf3, #f9f9f9)',
+              border: '1px solid var(--bdr, #eee)',
+              padding: '6px 12px',
+              borderRadius: 8,
+            }}
+          >
+
+            <input
+              type="date"
+              value={customRange.start}
+              onChange={e =>
+                setCustomRange(prev => ({
+                  ...prev,
+                  start: e.target.value,
+                }))
+              }
+              required
+              style={{
+                background:
+                  'var(--surf1, #ffffff)',
+                color:
+                  'var(--txt1, #000000)',
+                border:
+                  '1px solid var(--bdr, #ccc)',
+                borderRadius: 6,
+                padding: '4px 8px',
+              }}
+            />
+
+            <span
+              style={{
+                color: 'var(--txt1, #000000)',
+                fontSize: 13,
+                fontWeight: 500,
+              }}
+            >
+              to
+            </span>
+
+            <input
+              type="date"
+              value={customRange.end}
+              min={customRange.start || undefined}
+              onChange={e =>
+                setCustomRange(prev => ({
+                  ...prev,
+                  end: e.target.value,
+                }))
+              }
+              required
+              style={{
+                background:
+                  'var(--surf1, #ffffff)',
+                color:
+                  'var(--txt1, #000000)',
+                border:
+                  '1px solid var(--bdr, #ccc)',
+                borderRadius: 6,
+                padding: '4px 8px',
+              }}
+            />
+
+            <button
+              type="submit"
+              style={{
+                background:
+                  'var(--gold, #C9A96E)',
+                color:
+                  'var(--surf1, #000000)',
+                border: 'none',
+                borderRadius: 6,
+                padding: '6px 10px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              title="Apply"
+            >
+              ✓
+            </button>
+
+          </form>
+
+        )}
 
       </div>
 
-      {/* ====================================================
+      {/* ======================================================
           UNIFIED STAT CARDS
-          ==================================================== */}
+      ====================================================== */}
 
       <UnifiedStatCards
-        cards={
-          unifiedAnalyticsCards
-        }
+        cards={unifiedAnalyticsCards}
         loading={loading}
       />
 
-      {/* ====================================================
+      {/* ======================================================
           CATEGORY + PAYMENT
-          ==================================================== */}
+      ====================================================== */}
 
       <div
         className="two-col"
-        style={{
-          marginBottom: 14,
-        }}
+        style={{ marginBottom: 14 }}
       >
 
         {/* CATEGORY */}
@@ -1065,20 +1176,14 @@ export default function AnalyticsPage() {
           ) : catDonutData.length === 0 ? (
 
             <Empty
-              icon={
-                <PieChart
-                  size={32}
-                />
-              }
+              icon={<PieChart size={32} />}
               text="No category data"
             />
 
           ) : (
 
             <DonutChart
-              data={
-                catDonutData
-              }
+              data={catDonutData}
             />
 
           )}
@@ -1093,9 +1198,7 @@ export default function AnalyticsPage() {
 
             <span className="card-title">
 
-              <CreditCard
-                size={15}
-              />
+              <CreditCard size={15} />
 
               Payment Split
 
@@ -1110,11 +1213,7 @@ export default function AnalyticsPage() {
           ) : !hasPaymentData ? (
 
             <Empty
-              icon={
-                <CreditCard
-                  size={32}
-                />
-              }
+              icon={<CreditCard size={32} />}
               text="No payment data"
             />
 
@@ -1131,9 +1230,9 @@ export default function AnalyticsPage() {
 
       </div>
 
-      {/* ====================================================
+      {/* ======================================================
           REVENUE BY HOUR
-          ==================================================== */}
+      ====================================================== */}
 
       <div className="card">
 
@@ -1153,24 +1252,10 @@ export default function AnalyticsPage() {
 
           <Skeleton rows={3} />
 
-        ) : hourlyChartData.every(
-          item =>
-            Number(item.value) === 0
-        ) ? (
-
-          <Empty
-            icon={
-              <Clock3 size={32} />
-            }
-            text="No hourly revenue data"
-          />
-
         ) : (
 
           <BarChart
-            data={
-              hourlyChartData
-            }
+            data={hourlyChartData}
             height={200}
             color="#3B82F6"
           />
@@ -1179,24 +1264,20 @@ export default function AnalyticsPage() {
 
       </div>
 
-      {/* ====================================================
+      {/* ======================================================
           DAILY REVENUE TREND
-          ==================================================== */}
+      ====================================================== */}
 
       <div
         className="card"
-        style={{
-          marginTop: 14,
-        }}
+        style={{ marginTop: 14 }}
       >
 
         <div className="card-header">
 
           <span className="card-title">
 
-            <TrendingUp
-              size={15}
-            />
+            <TrendingUp size={15} />
 
             Daily Revenue Trend
 
@@ -1207,17 +1288,6 @@ export default function AnalyticsPage() {
         {loading ? (
 
           <Skeleton rows={3} />
-
-        ) : trendData.length === 0 ? (
-
-          <Empty
-            icon={
-              <TrendingUp
-                size={32}
-              />
-            }
-            text="No daily revenue data"
-          />
 
         ) : (
 
@@ -1232,5 +1302,7 @@ export default function AnalyticsPage() {
       </div>
 
     </div>
+
   )
+
 }
