@@ -158,7 +158,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-<<<<<<< HEAD
       <DashboardFilter
         dateFrom={dateFrom}
         dateTo={dateTo}
@@ -167,9 +166,6 @@ export default function DashboardPage() {
           setDateTo(newTo)
         }}
       />
-=======
-      <DashboardFilter dateFrom={dateFrom} dateTo={dateTo} onFilterChange={({ dateFrom, dateTo }) => { setDateFrom(dateFrom); setDateTo(dateTo); }} />
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 
       <UnifiedStatCards cards={statCardsConfiguration} loading={globalLoading || chartsLoading} />
 
