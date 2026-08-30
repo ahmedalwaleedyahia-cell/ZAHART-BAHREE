@@ -1,10 +1,5 @@
-<<<<<<< HEAD
 ﻿import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { createOrder, fetchOrders, fetchTodaySummary, subscribeToOrders } from '../services/orderService.js'
-=======
-﻿import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { createOrder, fetchOrders, fetchTodaySummary, subscribeToOrders, deleteOrder as deleteOrderService } from '../services/orderService.js'
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
 import { updateOrderStatus as updateOrderStatusService } from '../services/orderService.js'
 import { supabase, TABLES } from '../supabase/supabase.js'
 import { useAuth } from './AuthContext.jsx'
@@ -156,20 +151,6 @@ export function OrdersProvider({ children }) {
 
     if (error) return { error }
 
-<<<<<<< HEAD
-    setLastOrder({
-      ...data,
-      items: cart.map(c => ({
-        product_id: c.id,
-        product_name: c.name,
-        product_name_ar: c.name_ar || null,
-        unit_price: Number(c.price || 0),
-        quantity: Number(c.qty || 0),
-        line_total: Number(c.price || 0) * Number(c.qty || 0),
-        product_emoji: c.emoji || '🍽️'
-      }))
-    })
-=======
     const completedOrder = data || {
       ...orderData,
       items: itemsPayload,
@@ -179,7 +160,6 @@ export function OrdersProvider({ children }) {
     setLastOrder(completedOrder)
     setOrders(prev => [completedOrder, ...prev.filter(o => o.id !== completedOrder.id)])
 
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
     clearCart()
     return { data: completedOrder, error: null }
   }, [cart, processing, paymentMethod, orderType, cashGiven, totalAmount, subtotal, discountPct, discountAmount, dynamicVatRate, vatAmount, changeAmount, orderNotes, profile, clearCart])
@@ -201,11 +181,7 @@ export function OrdersProvider({ children }) {
     }
   }
 
-<<<<<<< HEAD
-  const updateOrderItems = useCallback(async (orderId, newItems = [], newSubtotal = 0, newTotal = 0, newVatAmount = 0, newDiscountAmount = 0) => {
-=======
   const updateOrderItems = useCallback(async (orderId, newItems, newSubtotal, newTotal, newVatAmount = 0, newDiscountAmount = 0, extraUpdates = {}) => {
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
     try {
       const { error: deleteError } = await supabase
         .from(TABLES.ORDER_ITEMS)
@@ -217,19 +193,12 @@ export function OrdersProvider({ children }) {
       const formattedItems = newItems.map(item => ({
         order_id: orderId,
         product_id: item.product_id || item.id,
-<<<<<<< HEAD
-        product_name: item.product_name || item.name,
-        unit_price: item.unit_price || item.price || 0,
-        quantity: item.quantity || item.qty || 0,
-        line_total: (item.unit_price || item.price || 0) * (item.quantity || item.qty || 0)
-=======
         product_name: item.product_name || item.name || 'Item',
         product_name_ar: item.product_name_ar || item.name_ar || item.name || null,
         unit_price: Number(item.unit_price || item.price || 0),
         quantity: Number(item.quantity || item.qty || 1),
         line_total: Number(item.line_total || ((item.unit_price || item.price) * (item.quantity || item.qty))),
         category: item.category || 'food'
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
       }))
 
       const { error: insertError } = await supabase
@@ -298,11 +267,15 @@ export function OrdersProvider({ children }) {
     updateOrderItems,
   }), [
     cart, addToCart, removeFromCart, updateQty, clearCart,
-    paymentMethod, discountPct, orderNotes, cashGiven,
+    paymentMethod, setPaymentMethod,
+    orderType, setOrderType,
+    discountPct, setDiscountPct,
+    orderNotes, setOrderNotes,
+    cashGiven, setCashGiven,
     subtotal, discountAmount, vatAmount, totalAmount, changeAmount, cartCount,
     orders, todaySummary, loading, processing, lastOrder,
     dynamicVatRate, processPayment, loadOrders, updateOrderStatus,
-    updatePaymentMethod, updateOrderItems
+    deleteOrder, updateOrderItems
   ])
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>

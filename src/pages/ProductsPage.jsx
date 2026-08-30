@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
+﻿import { useState, useEffect, useRef, useMemo } from 'react'
 import { useProducts } from '../context/ProductsContext.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
@@ -8,9 +8,6 @@ import Skeleton from '../components/ui/Skeleton.jsx'
 import { categoryIcons } from '../utils/categoryIcon.js'
 import {
   Package,
-  Coffee,
-  UtensilsCrossed,
-  IceCream2,
   ShoppingBasket,
   Image,
   Camera,
@@ -127,7 +124,6 @@ export default function ProductsPage({ showToast }) {
     reader.readAsDataURL(file)
   }
 
-  // في ملف src/pages/ProductsPage.jsx
   async function handleSave() {
     if (!form.name.trim()) { showToast?.('Product name is required', 'error'); return }
     if (!form.price || isNaN(+form.price)) { showToast?.('Valid price required', 'error'); return }
@@ -147,16 +143,10 @@ export default function ProductsPage({ showToast }) {
     const payload = { ...form, price: parseFloat(form.price), image_url: imageUrl }
     const res = editingId ? await editProduct(editingId, payload) : await addProduct(payload)
     setSaving(false)
-<<<<<<< HEAD
+
     if (res?.error) { showToast?.(res.error, 'error'); return }
+
     showToast?.(editingId ? 'Product updated!' : 'Product added!', 'success')
-=======
-    if (res.error) { showToast(res.error, 'error'); return }
-
-    showToast(editingId ? 'Product updated!' : 'Product added!', 'success')
-
-    // تنظيف المسودة بشكل مؤكد من localStorage
->>>>>>> ce067cb4ab6f91a4fa5457b9541b82610d0f8739
     localStorage.removeItem('productDraft')
     closeModal()
   }
@@ -331,7 +321,6 @@ export default function ProductsPage({ showToast }) {
             <span>Available for ordering</span>
           </div>
 
-          {/* 📦 DRINKS INVENTORY SECTION */}
           {form.category_slug === 'drinks' && (
             <div className="card" style={{ marginBottom: 16, padding: 14 }}>
               <div
@@ -373,7 +362,6 @@ export default function ProductsPage({ showToast }) {
             </div>
           )}
 
-          {/* 🍰 DESSERTS INVENTORY SECTION */}
           {form.category_slug === 'desserts' && (
             <div className="card" style={{ marginBottom: 16, padding: 14 }}>
               <div
