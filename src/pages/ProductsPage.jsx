@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useCallback, useRef } from 'react'
+﻿import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useProducts } from '../context/ProductsContext.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import Toggle from '../components/ui/Toggle.jsx'
@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 
 export default function ProductsPage({ showToast }) {
-  const { products, categories, loading, addProduct, editProduct, removeProduct, toggleAvailability, uploadImage } = useProducts()
+  const { products = [], categories = [], loading, addProduct, editProduct, removeProduct, toggleAvailability, uploadImage } = useProducts()
   const [search, setSearch] = useState('')
   const [catFilter, setCatFilter] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -85,15 +85,15 @@ export default function ProductsPage({ showToast }) {
     })
     setEditingId(null)
     setImageFile(null)
-    setImagePreview('') 
+    setImagePreview('')
     setModalOpen(true)
   }
 
   function openEdit(p) {
     setForm({
-      name: p.name, name_ar: p.name_ar || '', description: p.description || '',
-      price: p.price, category_id: p.category_id, category_slug: p.category_slug,
-      image_url: p.image_url || '', is_available: p.is_available,
+      name: p.name || '', name_ar: p.name_ar || '', description: p.description || '',
+      price: p.price ?? '', category_id: p.category_id || '', category_slug: p.category_slug || 'food',
+      image_url: p.image_url || '', is_available: !!p.is_available,
       inventory_enabled: p.inventory_enabled || false,
       pieces_per_packet: p.pieces_per_packet ?? '',
       number_of_packets: p.number_of_packets ?? '',
@@ -119,8 +119,8 @@ export default function ProductsPage({ showToast }) {
     const file = e.target.files?.[0]
     if (!file) return
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
-    if (!allowed.includes(file.type)) { showToast('Only JPG, PNG or WEBP allowed', 'error'); return }
-    if (file.size > 5 * 1024 * 1024) { showToast('Image must be under 5 MB', 'error'); return }
+    if (!allowed.includes(file.type)) { showToast?.('Only JPG, PNG or WEBP allowed', 'error'); return }
+    if (file.size > 5 * 1024 * 1024) { showToast?.('Image must be under 5 MB', 'error'); return }
     setImageFile(file)
     const reader = new FileReader()
     reader.onloadend = () => setImagePreview(reader.result)
@@ -128,9 +128,9 @@ export default function ProductsPage({ showToast }) {
   }
 
   async function handleSave() {
-    if (!form.name.trim()) { showToast('Product name is required', 'error'); return }
-    if (!form.price || isNaN(+form.price)) { showToast('Valid price required', 'error'); return }
-    if (!form.category_id) { showToast('Select a category', 'error'); return }
+    if (!form.name.trim()) { showToast?.('Product name is required', 'error'); return }
+    if (!form.price || isNaN(+form.price)) { showToast?.('Valid price required', 'error'); return }
+    if (!form.category_id) { showToast?.('Select a category', 'error'); return }
     setSaving(true)
 
     let imageUrl = form.image_url || null
@@ -139,15 +139,15 @@ export default function ProductsPage({ showToast }) {
       const tempId = editingId || `temp_${Date.now()}`
       const { url, error: imgErr } = await uploadImage(imageFile, tempId)
       setUploadingImg(false)
-      if (imgErr) { showToast(`Image upload failed: ${imgErr}`, 'error'); setSaving(false); return }
+      if (imgErr) { showToast?.(`Image upload failed: ${imgErr}`, 'error'); setSaving(false); return }
       imageUrl = url
     }
 
     const payload = { ...form, price: parseFloat(form.price), image_url: imageUrl }
     const res = editingId ? await editProduct(editingId, payload) : await addProduct(payload)
     setSaving(false)
-    if (res.error) { showToast(res.error, 'error'); return }
-    showToast(editingId ? 'Product updated!' : 'Product added!', 'success')
+    if (res?.error) { showToast?.(res.error, 'error'); return }
+    showToast?.(editingId ? 'Product updated!' : 'Product added!', 'success')
     localStorage.removeItem('productDraft')
     closeModal()
   }
@@ -155,21 +155,26 @@ export default function ProductsPage({ showToast }) {
   async function handleDelete(id) {
     if (!confirm('Delete this product? This cannot be undone.')) return
     const { error } = await removeProduct(id)
-    error ? showToast(error, 'error') : showToast('Product deleted', 'info')
+    error ? showToast?.(error, 'error') : showToast?.('Product deleted', 'info')
   }
 
   async function handleToggle(id, val) {
     const { error } = await toggleAvailability(id, val)
-    error ? showToast(error, 'error') : showToast(val ? 'Product enabled' : 'Product disabled', 'info')
+    error ? showToast?.(error, 'error') : showToast?.(val ? 'Product enabled' : 'Product disabled', 'info')
   }
 
-  const filtered = products.filter(p =>
-    (!catFilter || p.category_slug === catFilter) &&
-    (!search ||
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      (p.name_ar && p.name_ar.includes(search))
+  const filtered = useMemo(() => {
+    if (!Array.isArray(products)) return []
+    const q = search.trim().toLowerCase()
+
+    return products.filter(p =>
+      (!catFilter || p.category_slug === catFilter) &&
+      (!q ||
+        String(p.name || '').toLowerCase().includes(q) ||
+        String(p.name_ar || '').includes(q)
+      )
     )
-  )
+  }, [products, catFilter, search])
 
   return (
     <div className="scroll-view">

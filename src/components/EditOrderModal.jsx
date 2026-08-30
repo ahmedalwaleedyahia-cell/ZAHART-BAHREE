@@ -1,6 +1,7 @@
 ﻿import { useState, useMemo, useEffect } from 'react'
 import { useOrders } from '../context/OrdersContext.jsx'
-import { Trash2, Plus, Minus, PackagePlus, X } from 'lucide-react'
+import { useProducts } from '../context/ProductsContext.jsx'
+import { Trash2, Plus, Minus, PackagePlus, X, Calendar, Clock, CreditCard, MessageSquare, DollarSign } from 'lucide-react'
 
 function getCategoryName(product) {
   if (!product) return 'Other'
@@ -16,8 +17,31 @@ function getCategoryName(product) {
   return 'Other'
 }
 
-export default function EditOrderModal({ order, products = [], onClose, showToast, onOrderUpdated }) {
+// دالة تنسيق التاريخ للـ input: YYYY-MM-DD
+function formatDateForInput(dateStr) {
+  if (!dateStr) return new Date().toISOString().split('T')[0]
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0]
+  return d.toISOString().split('T')[0]
+}
+
+// دالة تنسيق الوقت للـ input: HH:mm
+function formatTimeForInput(dateStr) {
+  if (!dateStr) {
+    const d = new Date()
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return '12:00'
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+export default function EditOrderModal({ order, products: propProducts = [], onClose, showToast, onOrderUpdated }) {
   const { updateOrderItems } = useOrders()
+  const { products: ctxProducts } = useProducts()
+
+  // استخدام قائمة المنتجات المتاحة من الـ context أو الـ props
+  const products = (ctxProducts && ctxProducts.length > 0) ? ctxProducts : propProducts
 
   const [isCashier, setIsCashier] = useState(false)
   useEffect(() => {
@@ -30,7 +54,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
     }
   }, [])
 
-  // Normalize initial items structure
+  // 1. حالات عناصر الطلب
   const [items, setItems] = useState(() => {
     return (order?.items || []).map(item => {
       const uPrice = parseFloat(item.unit_price || item.price) || 0
@@ -48,6 +72,16 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
       }
     })
   })
+
+  // 2. حالات التواريخ وطريقة الدفع والتعليقات
+  const initialDate = formatDateForInput(order?.created_at)
+  const initialTime = formatTimeForInput(order?.created_at)
+
+  const [orderDate, setOrderDate] = useState(initialDate)
+  const [orderTime, setOrderTime] = useState(initialTime)
+  const [paymentMethod, setPaymentMethod] = useState(order?.payment_method || 'cash')
+  const [cashGiven, setCashGiven] = useState(order?.cash_given ?? order?.cashGiven ?? '')
+  const [notes, setNotes] = useState(order?.notes || '')
 
   const [saving, setSaving] = useState(false)
   const [selectedProductId, setSelectedProductId] = useState('')
@@ -82,7 +116,7 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
 
   function handleAddNewItem() {
     if (!selectedProductId) {
-      showToast('Please select a product', 'error')
+      showToast?.('Please select a product', 'error')
       return
     }
     const product = products.find(p => String(p.id) === String(selectedProductId))
@@ -132,6 +166,10 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
   const tax = taxable * (taxRate / 100)
   const total = taxable + tax
 
+  // حساب الباقي التلقائي
+  const numericCashGiven = parseFloat(cashGiven) || 0
+  const changeAmount = paymentMethod === 'cash' && numericCashGiven > 0 ? Math.max(0, numericCashGiven - total) : 0
+
   async function handleSaveChanges() {
     if (items.length === 0) {
       if (!confirm('Order has no items. Save empty order?')) return
@@ -157,7 +195,17 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         }
       })
 
-      // استدعاء التحديث بالمعايير الصحيحة للمحافظة على الفوترة
+      // دمج التاريخ والوقت لتكوين كائن ISO الصحيح
+      const updatedCreatedAt = new Date(`${orderDate}T${orderTime}:00`).toISOString()
+
+      const orderPayloadUpdates = {
+        payment_method: paymentMethod,
+        cash_given: paymentMethod === 'cash' ? (numericCashGiven || null) : null,
+        change_amount: paymentMethod === 'cash' ? (changeAmount || null) : null,
+        notes: notes.trim() || null,
+        created_at: updatedCreatedAt
+      }
+
       if (typeof updateOrderItems === 'function') {
         const { error } = await updateOrderItems(
           order.id,
@@ -165,14 +213,14 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           subtotal,
           total,
           tax,
-          discountAmount
+          discountAmount,
+          orderPayloadUpdates
         )
         if (error) throw new Error(error)
       }
 
-      showToast('Order updated successfully', 'success')
+      showToast?.('Order updated successfully', 'success')
 
-      // بناء البيانات المحدثة لتمريرها للشاشة الأصلية وتحديث المعاينة فوراً
       const updatedOrder = {
         ...order,
         items: normalizedItems,
@@ -181,16 +229,21 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
         vat_amount: tax,
         tax: tax,
         total_amount: total,
-        total: total
+        total: total,
+        payment_method: paymentMethod,
+        cash_given: paymentMethod === 'cash' ? numericCashGiven : null,
+        change_amount: paymentMethod === 'cash' ? changeAmount : null,
+        notes: notes.trim() || null,
+        created_at: updatedCreatedAt
       }
 
-      if (onOrderUpdated) {
+      if (typeof onOrderUpdated === 'function') {
         onOrderUpdated(updatedOrder)
       }
 
       onClose()
     } catch (err) {
-      showToast(err.message || 'Failed to update order', 'error')
+      showToast?.(err.message || 'Failed to update order', 'error')
     } finally {
       setSaving(false)
     }
@@ -207,9 +260,12 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           border: 1px solid var(--bdr, rgba(197, 160, 89, 0.3)) !important;
           box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4) !important;
           border-radius: 16px !important;
-          max-width: 520px;
+          max-width: 580px;
           width: 100%;
           padding: 24px;
+          max-height: 90vh;
+          display: flex;
+          flex-direction: column;
         }
 
         .adaptive-card {
@@ -241,12 +297,8 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           transition: all 0.15s ease !important;
         }
 
-        .btn-cancel-custom:hover, 
-        .btn-cancel-custom:active, 
-        .btn-cancel-custom:focus {
+        .btn-cancel-custom:hover {
           background-color: var(--surf2, rgba(128, 128, 128, 0.15)) !important;
-          color: var(--txt, inherit) !important;
-          border-color: var(--txt2, rgba(128, 128, 128, 0.5)) !important;
         }
 
         .btn-gold-custom {
@@ -259,18 +311,30 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           font-size: 13px !important;
           cursor: pointer !important;
         }
+
+        .section-label {
+          color: var(--gold, #c5a059);
+          font-size: 11px;
+          font-weight: 800;
+          margin-bottom: 8px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
       `}</style>
 
       <div className="adaptive-modal-box" onClick={e => e.stopPropagation()}>
 
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
           <div>
             <div style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)', display: 'flex', alignItems: 'center', gap: '8px', letterSpacing: '0.5px' }}>
               EDIT ORDER <span style={{ backgroundColor: 'var(--gold-bg, rgba(197, 160, 89, 0.15))', color: 'var(--gold, #c5a059)', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', border: '1px solid var(--bdr, rgba(197, 160, 89, 0.3))' }}>INV-{orderNumStr}</span>
             </div>
             <div style={{ fontSize: '12px', color: 'var(--txt2, #a1a1aa)', marginTop: '4px' }}>
-              Modify items, quantities, or add products
+              Modify order items, payment details, date & comments
             </div>
           </div>
           <button
@@ -282,130 +346,209 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           </button>
         </div>
 
-        {/* Existing Items List */}
-        <div
-          className="adaptive-card"
-          style={{
-            maxHeight: '220px',
-            overflowY: 'auto',
-            marginBottom: '18px',
-            padding: '8px 12px'
-          }}
-        >
-          {items.length === 0 ? (
-            <div style={{ textAlign: 'center', color: 'var(--txt3, #a1a1aa)', padding: '24px 0', fontSize: '13px' }}>
-              No items in this order
-            </div>
-          ) : (
-            items.map((item, idx) => {
-              const uPrice = parseFloat(item.unit_price || item.price) || 0
-              const itemTotal = item.total_price || (item.quantity * uPrice)
-              return (
-                <div
-                  key={idx}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '10px 0',
-                    borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr, rgba(128, 128, 128, 0.15))'
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
-                    <div style={{ fontWeight: '600', fontSize: '13.5px', color: 'var(--txt, inherit)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.product_name || item.name}
+        {/* Scrollable Content Container */}
+        <div style={{ overflowY: 'auto', paddingRight: '4px', flex: 1, marginBottom: '16px' }}>
+
+          {/* Existing Items List */}
+          <div className="adaptive-card" style={{ maxHeight: '180px', overflowY: 'auto', marginBottom: '14px', padding: '8px 12px' }}>
+            {items.length === 0 ? (
+              <div style={{ textAlign: 'center', color: 'var(--txt3, #a1a1aa)', padding: '24px 0', fontSize: '13px' }}>
+                No items in this order
+              </div>
+            ) : (
+              items.map((item, idx) => {
+                const uPrice = parseFloat(item.unit_price || item.price) || 0
+                const itemTotal = item.total_price || (item.quantity * uPrice)
+                return (
+                  <div
+                    key={idx}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 0',
+                      borderBottom: idx === items.length - 1 ? 'none' : '1px solid var(--bdr, rgba(128, 128, 128, 0.15))'
+                    }}
+                  >
+                    <div style={{ flex: 1, minWidth: 0, paddingRight: '12px' }}>
+                      <div style={{ fontWeight: '600', fontSize: '13px', color: 'var(--txt, inherit)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.product_name || item.name}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', marginTop: '2px' }}>
+                        AED {uPrice.toFixed(2)} each
+                      </div>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', marginTop: '2px' }}>
-                      AED {uPrice.toFixed(2)} each
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <div className="adaptive-input" style={{ display: 'flex', alignItems: 'center', borderRadius: '6px', padding: '2px' }}>
+                        <button
+                          onClick={() => handleQtyChange(idx, -1)}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Minus size={12} />
+                        </button>
+                        <span style={{ minWidth: '22px', textAlign: 'center', fontWeight: '700', fontSize: '12.5px', color: 'var(--txt, inherit)' }}>
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => handleQtyChange(idx, 1)}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '24px', height: '24px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                          <Plus size={12} />
+                        </button>
+                      </div>
+
+                      <div style={{ width: '70px', textAlign: 'right', fontWeight: '700', fontSize: '13px', color: 'var(--txt, inherit)' }}>
+                        AED {itemTotal.toFixed(2)}
+                      </div>
+
+                      {!isCashier && (
+                        <button
+                          onClick={() => handleRemoveItem(idx)}
+                          style={{ background: 'var(--red-bg, rgba(239, 68, 68, 0.15))', border: 'none', color: 'var(--red, #ef4444)', width: '28px', height: '28px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                          title="Remove Item"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </div>
                   </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    {/* Quantity Controls */}
-                    <div className="adaptive-input" style={{ display: 'flex', alignItems: 'center', borderRadius: '8px', padding: '2px' }}>
-                      <button
-                        onClick={() => handleQtyChange(idx, -1)}
-                        style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        <Minus size={12} />
-                      </button>
-                      <span style={{ minWidth: '24px', textAlign: 'center', fontWeight: '700', fontSize: '13px', color: 'var(--txt, inherit)' }}>
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => handleQtyChange(idx, 1)}
-                        style={{ background: 'transparent', border: 'none', color: 'var(--gold, #c5a059)', width: '26px', height: '26px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                      >
-                        <Plus size={12} />
-                      </button>
-                    </div>
-
-                    <div style={{ width: '75px', textAlign: 'right', fontWeight: '700', fontSize: '13.5px', color: 'var(--txt, inherit)' }}>
-                      AED {itemTotal.toFixed(2)}
-                    </div>
-
-                    {/* Hide Delete Option ONLY for Cashier */}
-                    {!isCashier && (
-                      <button
-                        onClick={() => handleRemoveItem(idx)}
-                        style={{ background: 'var(--red-bg, rgba(239, 68, 68, 0.15))', border: 'none', color: 'var(--red, #ef4444)', width: '30px', height: '30px', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        title="Remove Item"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )
-            })
-          )}
-        </div>
-
-        {/* Add Product Box */}
-        <div
-          className="adaptive-card"
-          style={{
-            padding: '14px',
-            marginBottom: '20px'
-          }}
-        >
-          <label style={{ color: 'var(--gold, #c5a059)', fontSize: '11px', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-            <PackagePlus size={14} /> Add Product
-          </label>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <select
-              value={selectedProductId}
-              onChange={e => setSelectedProductId(e.target.value)}
-              className="adaptive-input"
-              style={{ flex: 1, fontSize: '13px', borderRadius: '8px', padding: '9px 12px', outline: 'none' }}
-            >
-              <option value="">Select product...</option>
-              {Object.keys(groupedProducts).map(catName => (
-                <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`} style={{ color: 'var(--gold, #c5a059)', fontWeight: '700' }}>
-                  {groupedProducts[catName].map(p => (
-                    <option key={p.id} value={p.id}>
-                      {p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}
-                    </option>
-                  ))}
-                </optgroup>
-              ))}
-            </select>
-            <input
-              type="number"
-              min="1"
-              value={addQty}
-              onChange={e => setAddQty(e.target.value)}
-              className="adaptive-input"
-              style={{ width: '60px', textAlign: 'center', padding: '9px 4px', borderRadius: '8px', outline: 'none' }}
-            />
-            <button
-              onClick={handleAddNewItem}
-              className="btn-gold-custom"
-              style={{ padding: '9px 18px' }}
-            >
-              Add
-            </button>
+                )
+              })
+            )}
           </div>
+
+          {/* Add Product Box */}
+          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
+            <label className="section-label">
+              <PackagePlus size={14} /> Add Product
+            </label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <select
+                value={selectedProductId}
+                onChange={e => setSelectedProductId(e.target.value)}
+                className="adaptive-input"
+                style={{ flex: 1, fontSize: '12.5px', borderRadius: '8px', padding: '8px 10px', outline: 'none' }}
+              >
+                <option value="">Select product...</option>
+                {Object.keys(groupedProducts).map(catName => (
+                  <optgroup key={catName} label={`--- ${catName.toUpperCase()} ---`} style={{ color: 'var(--gold, #c5a059)', fontWeight: '700' }}>
+                    {groupedProducts[catName].map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.name_ar || p.name} — AED {parseFloat(p.price).toFixed(2)}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <input
+                type="number"
+                min="1"
+                value={addQty}
+                onChange={e => setAddQty(e.target.value)}
+                className="adaptive-input"
+                style={{ width: '55px', textAlign: 'center', padding: '8px 4px', borderRadius: '8px', outline: 'none', fontSize: '12.5px' }}
+              />
+              <button
+                onClick={handleAddNewItem}
+                className="btn-gold-custom"
+                style={{ padding: '8px 14px', fontSize: '12.5px' }}
+              >
+                Add
+              </button>
+            </div>
+          </div>
+
+          {/* Date & Time Settings */}
+          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
+            <label className="section-label">
+              <Calendar size={14} /> Date & Time
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', display: 'block', marginBottom: '4px' }}>Order Date</span>
+                <input
+                  type="date"
+                  value={orderDate}
+                  onChange={e => setOrderDate(e.target.value)}
+                  className="adaptive-input"
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
+                />
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', display: 'block', marginBottom: '4px' }}>Order Time</span>
+                <input
+                  type="time"
+                  value={orderTime}
+                  onChange={e => setOrderTime(e.target.value)}
+                  className="adaptive-input"
+                  style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Payment Method & Received Amount */}
+          <div className="adaptive-card" style={{ padding: '12px', marginBottom: '14px' }}>
+            <label className="section-label">
+              <CreditCard size={14} /> Payment Details
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: paymentMethod === 'cash' ? '1fr 1fr' : '1fr', gap: '10px' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', display: 'block', marginBottom: '4px' }}>Payment Method</span>
+                <select
+                  value={paymentMethod}
+                  onChange={e => setPaymentMethod(e.target.value)}
+                  className="adaptive-input"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
+                >
+                  <option value="cash">Cash</option>
+                  <option value="card">Card / Visa</option>
+                  <option value="unpaid">Unpaid</option>
+                </select>
+              </div>
+
+              {paymentMethod === 'cash' && (
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--txt2, #a1a1aa)', display: 'block', marginBottom: '4px' }}>Cash Received (AED)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={cashGiven}
+                    onChange={e => setCashGiven(e.target.value)}
+                    className="adaptive-input"
+                    style={{ width: '100%', padding: '7px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none' }}
+                  />
+                </div>
+              )}
+            </div>
+
+            {paymentMethod === 'cash' && numericCashGiven > 0 && (
+              <div style={{ marginTop: '8px', fontSize: '12px', display: 'flex', justifyContent: 'space-between', color: 'var(--txt2, #a1a1aa)', background: 'var(--surf3, rgba(0,0,0,0.2))', padding: '6px 10px', borderRadius: '6px' }}>
+                <span>Change to return:</span>
+                <span style={{ fontWeight: '700', color: changeAmount >= 0 ? 'var(--gold, #c5a059)' : '#ef4444' }}>
+                  AED {changeAmount.toFixed(2)}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {/* Comments & Order Notes */}
+          <div className="adaptive-card" style={{ padding: '12px' }}>
+            <label className="section-label">
+              <MessageSquare size={14} /> Order Notes / Comments
+            </label>
+            <textarea
+              rows="2"
+              placeholder="Add order comments or special instructions..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              className="adaptive-input"
+              style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', fontSize: '12.5px', outline: 'none', resize: 'vertical' }}
+            />
+          </div>
+
         </div>
 
         {/* Total Summary */}
@@ -413,12 +556,12 @@ export default function EditOrderModal({ order, products = [], onClose, showToas
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          paddingTop: '12px',
+          paddingTop: '10px',
           borderTop: '1px solid var(--bdr, rgba(128, 128, 128, 0.15))',
-          marginBottom: '20px'
+          marginBottom: '16px'
         }}>
-          <span style={{ fontSize: '13.5px', color: 'var(--txt2, #a1a1aa)', fontWeight: '500' }}>New Total Amount:</span>
-          <span style={{ fontSize: '20px', fontWeight: '800', color: 'var(--gold, #c5a059)' }}>
+          <span style={{ fontSize: '13px', color: 'var(--txt2, #a1a1aa)', fontWeight: '500' }}>New Total Amount:</span>
+          <span style={{ fontSize: '18px', fontWeight: '800', color: 'var(--gold, #c5a059)' }}>
             AED {total.toFixed(2)}
           </span>
         </div>

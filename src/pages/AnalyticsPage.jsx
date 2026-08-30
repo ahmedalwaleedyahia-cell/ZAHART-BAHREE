@@ -67,9 +67,11 @@ export default function AnalyticsPage() {
       setLoading(true)
 
       try {
+        const start = new Date(dateFrom)
+        const end = new Date(dateTo)
         const diffDays = Math.max(
           1,
-          Math.ceil((new Date(dateTo) - new Date(dateFrom)) / (1000 * 60 * 60 * 24)) + 1
+          Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
         )
 
         const filterObj = { dateFrom, dateTo }
@@ -171,36 +173,43 @@ export default function AnalyticsPage() {
     const customHourOrder = [
       7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
       0, 1
-    ];
+    ]
+
+    // بناء خريطة مسبقة لسرعة البحث
+    const hourlyMap = new Map()
+    hourly.forEach(i => {
+      if (i?.label) {
+        const cleanLabel = String(i.label).replace(/\s+/g, '').toLowerCase()
+        hourlyMap.set(cleanLabel, Number(i.revenue || 0))
+      }
+    })
+
     return customHourOrder.map(hour => {
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const displayHour = hour % 12 === 0 ? 12 : hour % 12;
-      const hourLabel = `${displayHour} ${ampm}`;
-
-      const match = hourly.find(i => {
-        if (!i || !i.label) return false;
-        const cleanServerLabel = String(i.label).replace(/\s+/g, '').toLowerCase();
-        const cleanLocalLabel = hourLabel.replace(/\s+/g, '').toLowerCase();
-
-        return cleanServerLabel === cleanLocalLabel;
-      });
+      const ampm = hour >= 12 ? 'PM' : 'AM'
+      const displayHour = hour % 12 === 0 ? 12 : hour % 12
+      const hourLabel = `${displayHour} ${ampm}`
+      const cleanLocalLabel = hourLabel.replace(/\s+/g, '').toLowerCase()
 
       return {
         label: hourLabel,
-        value: match ? Number(match.revenue || 0) : 0,
-      };
-    });
-  }, [hourly]);
+        value: hourlyMap.get(cleanLocalLabel) || 0,
+      }
+    })
+  }, [hourly])
 
   const trendData = useMemo(() =>
     dailyData.map(d => {
       let label = d.sale_date
 
       try {
-        label = new Date(d.sale_date).toLocaleDateString('en-AE', {
-          month: 'short',
-          day: 'numeric',
-        })
+        if (d.sale_date) {
+          const [year, month, day] = d.sale_date.split('-')
+          const dateObj = new Date(year, month - 1, day)
+          label = dateObj.toLocaleDateString('en-AE', {
+            month: 'short',
+            day: 'numeric',
+          })
+        }
       } catch { }
 
       return {
@@ -219,9 +228,9 @@ export default function AnalyticsPage() {
       <DashboardFilter
         dateFrom={dateFrom}
         dateTo={dateTo}
-        onFilterChange={({ dateFrom, dateTo }) => {
-          setDateFrom(dateFrom)
-          setDateTo(dateTo)
+        onFilterChange={({ dateFrom: newFrom, dateTo: newTo }) => {
+          setDateFrom(newFrom)
+          setDateTo(newTo)
         }}
       />
 

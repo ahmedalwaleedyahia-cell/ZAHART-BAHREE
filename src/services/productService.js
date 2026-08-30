@@ -58,27 +58,27 @@ export async function createProduct(productData) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const payload = {
-    name: productData.name.trim(),
+    name: productData.name?.trim(),
     name_ar: productData.name_ar?.trim() || null,
     description: productData.description?.trim() || null,
     description_ar: productData.description_ar?.trim() || null,
-    price: parseFloat(productData.price),
-    category_id: productData.category_id,
-    category_slug: productData.category_slug,
+    price: Number(productData.price) || 0,
+    category_id: productData.category_id || null,
+    category_slug: productData.category_slug || null,
     emoji: productData.emoji || '🍽️',
     image_url: productData.image_url || null,
     is_available: productData.is_available ?? true,
     is_featured: productData.is_featured ?? false,
-    sort_order: productData.sort_order ?? 0,
+    sort_order: Number(productData.sort_order) || 0,
     created_by: user?.id,
     updated_by: user?.id,
     inventory_enabled: productData.inventory_enabled ?? false,
-    pieces_per_packet: productData.pieces_per_packet ? parseInt(productData.pieces_per_packet, 10) : 0,
-    number_of_packets: productData.number_of_packets ? parseInt(productData.number_of_packets, 10) : 0,
-    current_stock: productData.current_stock ? parseInt(productData.current_stock, 10) : 0,
+    pieces_per_packet: Number(productData.pieces_per_packet) || 0,
+    number_of_packets: Number(productData.number_of_packets) || 0,
+    current_stock: Number(productData.current_stock) || 0,
     stock_unit: productData.stock_unit || 'gram',
-    current_weight: productData.current_weight ? parseFloat(productData.current_weight) : 0.0,
-    minimum_stock: productData.minimum_stock ? parseFloat(productData.minimum_stock) : 0.0,
+    current_weight: Number(productData.current_weight) || 0.0,
+    minimum_stock: Number(productData.minimum_stock) || 0.0,
   }
 
   const { data, error } = await supabase
@@ -99,8 +99,11 @@ export async function updateProduct(id, updates) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const payload = { ...updates, updated_by: user?.id, updated_at: new Date().toISOString() }
+
+  // تنظيف الكائن لمنع إرسال العلاقات أو الحقول غير القابلة للتحديث
   delete payload.id
-  delete payload.category  // never write the joined relation back
+  delete payload.category
+  delete payload.created_at
 
   const { data, error } = await supabase
     .from(TABLES.PRODUCTS)
@@ -130,10 +133,12 @@ export async function deleteProduct(id) {
   const { data: product } = await fetchProduct(id)
   if (product?.image_url) {
     try {
-      // Extract just the file name from the full public URL
-      const segments = product.image_url.split('/')
-      const fileName = segments[segments.length - 1].split('?')[0]
-      await supabase.storage.from(BUCKETS.PRODUCT_IMAGES).remove([fileName])
+      const url = new URL(product.image_url)
+      const pathSegments = url.pathname.split('/')
+      const fileName = pathSegments[pathSegments.length - 1]
+      if (fileName) {
+        await supabase.storage.from(BUCKETS.PRODUCT_IMAGES).remove([fileName])
+      }
     } catch (_) { /* non-fatal — proceed with DB delete */ }
   }
 
@@ -151,13 +156,11 @@ export async function deleteProduct(id) {
 // ============================================================
 
 export async function uploadProductImage(file, productId) {
-  // Validate file type
   const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
   if (!allowed.includes(file.type)) {
     return { url: null, error: 'Only JPG, PNG, and WEBP images are allowed.' }
   }
 
-  // Max 5 MB
   if (file.size > 5 * 1024 * 1024) {
     return { url: null, error: 'Image must be smaller than 5 MB.' }
   }
@@ -209,12 +212,18 @@ export function subscribeToProducts({ onInsert, onUpdate, onDelete } = {}) {
     .on(
       'postgres_changes',
       { event: 'INSERT', schema: 'public', table: TABLES.PRODUCTS },
-      (payload) => onInsert?.(payload.new)
+      async (payload) => {
+        const { data } = await fetchProduct(payload.new.id)
+        onInsert?.(data || payload.new)
+      }
     )
     .on(
       'postgres_changes',
       { event: 'UPDATE', schema: 'public', table: TABLES.PRODUCTS },
-      (payload) => onUpdate?.(payload.new)
+      async (payload) => {
+        const { data } = await fetchProduct(payload.new.id)
+        onUpdate?.(data || payload.new)
+      }
     )
     .on(
       'postgres_changes',

@@ -1,4 +1,4 @@
-﻿import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
+﻿import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { createOrder, fetchOrders, fetchTodaySummary, subscribeToOrders } from '../services/orderService.js'
 import { updateOrderStatus as updateOrderStatusService } from '../services/orderService.js'
 import { supabase } from '../supabase/supabase.js'
@@ -41,8 +41,8 @@ export function OrdersProvider({ children }) {
       fetchOrders({ limit: 1000, ...options }),
       fetchTodaySummary(),
     ])
-    if (!ordersResult.error) setOrders(ordersResult.data)
-    if (!summaryResult.error) setTodaySummary(summaryResult.data)
+    if (!ordersResult?.error && ordersResult?.data) setOrders(ordersResult.data)
+    if (!summaryResult?.error && summaryResult?.data) setTodaySummary(summaryResult.data)
     setLoading(false)
   }, [])
 
@@ -53,11 +53,12 @@ export function OrdersProvider({ children }) {
 
     channelRef.current = subscribeToOrders({
       onInsert: (newOrder) => {
+        if (!newOrder?.id) return
         setOrders(prev => {
           if (prev.find(o => o.id === newOrder.id)) return prev
           return [newOrder, ...prev]
         })
-        fetchTodaySummary().then(r => { if (!r.error) setTodaySummary(r.data) })
+        fetchTodaySummary().then(r => { if (!r?.error && r?.data) setTodaySummary(r.data) })
       },
     })
 
@@ -70,6 +71,7 @@ export function OrdersProvider({ children }) {
   }, [profile])
 
   const addToCart = useCallback((product) => {
+    if (!product?.id) return
     setCart(prev => {
       const existing = prev.find(c => c.id === product.id)
       if (existing) {
@@ -99,13 +101,13 @@ export function OrdersProvider({ children }) {
     setPaymentMethod('cash')
   }, [])
 
-  const subtotal = cart.reduce((acc, item) => acc + Number(item.price) * Number(item.qty), 0)
+  const subtotal = cart.reduce((acc, item) => acc + Number(item.price || 0) * Number(item.qty || 0), 0)
   const discountAmount = subtotal * (Number(discountPct || 0) / 100)
   const taxable = Math.max(0, subtotal - discountAmount)
   const vatAmount = dynamicVatRate > 0 ? taxable * (dynamicVatRate / 100) : 0
   const totalAmount = taxable + vatAmount
   const changeAmount = cashGiven ? Math.max(0, parseFloat(cashGiven) - totalAmount) : 0
-  const cartCount = cart.reduce((acc, item) => acc + item.qty, 0)
+  const cartCount = cart.reduce((acc, item) => acc + (item.qty || 0), 0)
 
   const processPayment = useCallback(async () => {
     if (cart.length === 0) return { error: 'Cart is empty' }
@@ -158,9 +160,9 @@ export function OrdersProvider({ children }) {
         product_id: c.id,
         product_name: c.name,
         product_name_ar: c.name_ar || null,
-        unit_price: Number(c.price),
-        quantity: Number(c.qty),
-        line_total: Number(c.price) * Number(c.qty),
+        unit_price: Number(c.price || 0),
+        quantity: Number(c.qty || 0),
+        line_total: Number(c.price || 0) * Number(c.qty || 0),
         product_emoji: c.emoji || '🍽️'
       }))
     })
@@ -189,7 +191,7 @@ export function OrdersProvider({ children }) {
     }
   }, [])
 
-  const updateOrderItems = useCallback(async (orderId, newItems, newSubtotal, newTotal, newVatAmount = 0, newDiscountAmount = 0) => {
+  const updateOrderItems = useCallback(async (orderId, newItems = [], newSubtotal = 0, newTotal = 0, newVatAmount = 0, newDiscountAmount = 0) => {
     try {
       const { error: deleteError } = await supabase
         .from('order_items')
@@ -202,9 +204,9 @@ export function OrdersProvider({ children }) {
         order_id: orderId,
         product_id: item.product_id || item.id,
         product_name: item.product_name || item.name,
-        unit_price: item.unit_price || item.price,
-        quantity: item.quantity || item.qty,
-        line_total: (item.unit_price || item.price) * (item.quantity || item.qty)
+        unit_price: item.unit_price || item.price || 0,
+        quantity: item.quantity || item.qty || 0,
+        line_total: (item.unit_price || item.price || 0) * (item.quantity || item.qty || 0)
       }))
 
       const { error: insertError } = await supabase
@@ -243,7 +245,7 @@ export function OrdersProvider({ children }) {
     }
   }, [lastOrder])
 
-  const value = {
+  const value = useMemo(() => ({
     cart, addToCart, removeFromCart, updateQty, clearCart,
     paymentMethod, setPaymentMethod,
     discountPct, setDiscountPct,
@@ -258,7 +260,14 @@ export function OrdersProvider({ children }) {
     updateOrderStatus,
     updatePaymentMethod,
     updateOrderItems,
-  }
+  }), [
+    cart, addToCart, removeFromCart, updateQty, clearCart,
+    paymentMethod, discountPct, orderNotes, cashGiven,
+    subtotal, discountAmount, vatAmount, totalAmount, changeAmount, cartCount,
+    orders, todaySummary, loading, processing, lastOrder,
+    dynamicVatRate, processPayment, loadOrders, updateOrderStatus,
+    updatePaymentMethod, updateOrderItems
+  ])
 
   return <OrdersContext.Provider value={value}>{children}</OrdersContext.Provider>
 }

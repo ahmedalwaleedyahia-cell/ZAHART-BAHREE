@@ -34,8 +34,12 @@ import '../styles/unified-cards.css'
 // دالة توحيد تحويل التاريخ للتوقيت المحلي للجهاز YYYY-MM-DD
 const getLocalDateString = (dateInput) => {
   if (!dateInput) return ''
-  const d = new Date(dateInput)
+  const d = typeof dateInput === 'string' && dateInput.includes('T')
+    ? new Date(dateInput)
+    : new Date(dateInput)
+
   if (isNaN(d.getTime())) return ''
+
   const year = d.getFullYear()
   const month = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
@@ -50,7 +54,7 @@ async function safeCall(fn, ...args) {
 }
 
 export default function DashboardPage() {
-  const { todaySummary: contextSummary, orders, loading: globalLoading } = useOrders()
+  const { orders, loading: globalLoading } = useOrders()
   const { products } = useProducts()
 
   // الضبط الافتراضي لتاريخ اليوم محلياً ليتطابق تماماً مع شاشة التقارير
@@ -73,9 +77,11 @@ export default function DashboardPage() {
       const options = { dateFrom, dateTo }
 
       try {
+        const start = new Date(dateFrom)
+        const end = new Date(dateTo)
         const diffDays = Math.max(
           1,
-          Math.ceil((new Date(dateTo) - new Date(dateFrom)) / (1000 * 60 * 60 * 24)) + 1
+          Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
         )
 
         const [bs, wd, hd, cd, ys, ds, ro] = await Promise.all([
@@ -113,7 +119,7 @@ export default function DashboardPage() {
 
   // فلترة الطلبات بنفس المنطق الدقيق المتبع في DailyReports
   const filteredOrders = useMemo(() => {
-    if (!orders) return []
+    if (!Array.isArray(orders)) return []
     return orders.filter(o => {
       if (o.status === 'cancelled') return false
 
@@ -136,7 +142,7 @@ export default function DashboardPage() {
 
     filteredOrders.forEach(o => {
       const amount = Number(o.total_amount || o.total || 0)
-      const method = (o.payment_method || '').toLowerCase()
+      const method = String(o.payment_method || '').toLowerCase()
 
       if (method !== 'unpaid') {
         revenue += amount
@@ -152,7 +158,7 @@ export default function DashboardPage() {
   }, [filteredOrders])
 
   const alertProducts = useMemo(() => {
-    if (!products) return []
+    if (!Array.isArray(products)) return []
     return products.filter(p => {
       if (!p.inventory_enabled) return false
       if (p.category_slug === 'drinks') {
@@ -211,9 +217,9 @@ export default function DashboardPage() {
       <DashboardFilter
         dateFrom={dateFrom}
         dateTo={dateTo}
-        onFilterChange={({ dateFrom, dateTo }) => {
-          setDateFrom(dateFrom)
-          setDateTo(dateTo)
+        onFilterChange={({ dateFrom: newFrom, dateTo: newTo }) => {
+          setDateFrom(newFrom)
+          setDateTo(newTo)
         }}
       />
 
@@ -274,9 +280,9 @@ export default function DashboardPage() {
           ) : (
             recentOrders.map(o => (
               <div key={o.id} className="list-row">
-                <span>#{o.invoice_number || o.order_number || '1'}</span>
+                <span>#{(o.invoice_number || o.order_number || o.id?.slice(0, 8) || '1').toString().replace(/^#?/, '')}</span>
                 <span>{fmtDateTime(o.created_at)}</span>
-                <span>AED {fmtNum(o.total_amount)}</span>
+                <span>AED {fmtNum(o.total_amount || 0)}</span>
               </div>
             ))
           )}

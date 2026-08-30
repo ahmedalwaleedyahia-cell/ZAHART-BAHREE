@@ -1,8 +1,3 @@
-// ============================================================
-// src/context/ProductsContext.jsx
-// Global products + categories state with realtime sync
-// ============================================================
-
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import {
   fetchProducts,
@@ -35,16 +30,16 @@ export function ProductsProvider({ children }) {
       fetchCategories(),
     ])
 
-    if (prodResult.error) {
+    if (prodResult?.error) {
       setError(prodResult.error)
       console.error('Products load error:', prodResult.error)
-    } else {
+    } else if (prodResult?.data) {
       setProducts(prodResult.data)
     }
 
-    if (catResult.error) {
+    if (catResult?.error) {
       console.error('Categories load error:', catResult.error)
-    } else {
+    } else if (catResult?.data) {
       setCategories(catResult.data)
     }
 
@@ -54,27 +49,27 @@ export function ProductsProvider({ children }) {
   useEffect(() => { loadAll() }, [loadAll])
 
   // ── Realtime — re-fetch full product on changes ────────
-  // We re-fetch the full row (with joined category) instead of using
-  // the raw payload which lacks the joined `category` object.
   useEffect(() => {
     channelRef.current = subscribeToProducts({
       onInsert: async (raw) => {
-        // Fetch full row with category join
+        if (!raw?.id) return
         const { data } = await fetchProduct(raw.id)
         if (!data) return
         setProducts(prev => {
           if (prev.find(p => p.id === data.id)) return prev
           return [...prev, data].sort((a, b) =>
-            (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)
+            (a.sort_order ?? 0) - (b.sort_order ?? 0) || (a.name || '').localeCompare(b.name || '')
           )
         })
       },
       onUpdate: async (raw) => {
+        if (!raw?.id) return
         const { data } = await fetchProduct(raw.id)
         if (!data) return
         setProducts(prev => prev.map(p => p.id === data.id ? data : p))
       },
       onDelete: (raw) => {
+        if (!raw?.id) return
         setProducts(prev => prev.filter(p => p.id !== raw.id))
       },
     })
@@ -88,10 +83,6 @@ export function ProductsProvider({ children }) {
   const addProduct = useCallback(async (productData) => {
     const { data, error } = await createProduct(productData)
     if (error) return { data: null, error }
-    // No optimistic insert — realtime onInsert is the single source of truth.
-    // It fetches the full row (with category join) and guards against duplicates.
-    // Removing the optimistic step eliminates the double-card bug where both
-    // the optimistic insert AND the realtime insert rendered the same product.
     return { data, error: null }
   }, [])
 

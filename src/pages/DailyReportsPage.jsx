@@ -10,8 +10,12 @@ import '../styles/unified-cards.css'
 // دالة توحيد تحويل التاريخ للتوقيت المحلي للجهاز YYYY-MM-DD
 const getLocalDateString = (dateInput) => {
     if (!dateInput) return ''
-    const d = new Date(dateInput)
+    const d = typeof dateInput === 'string' && dateInput.includes('T')
+        ? new Date(dateInput)
+        : new Date(dateInput)
+
     if (isNaN(d.getTime())) return ''
+
     const year = d.getFullYear()
     const month = String(d.getMonth() + 1).padStart(2, '0')
     const day = String(d.getDate()).padStart(2, '0')
@@ -27,7 +31,7 @@ export default function DailyReportsPage() {
 
     // تصفية الطلبات المطبقة بدقة التوقيت المحلي
     const filteredOrders = useMemo(() => {
-        if (!orders) return []
+        if (!Array.isArray(orders)) return []
 
         return orders.filter(order => {
             if (order.status === 'cancelled') return false
@@ -52,7 +56,7 @@ export default function DailyReportsPage() {
 
         filteredOrders.forEach(order => {
             const amount = Number(order.total_amount || order.total || 0)
-            const method = (order.payment_method || '').toLowerCase()
+            const method = String(order.payment_method || '').toLowerCase()
 
             if (method === 'unpaid') {
                 unpaidSales += amount
@@ -110,7 +114,11 @@ export default function DailyReportsPage() {
     }
 
     if (loading) {
-        return <div style={{ padding: 24, color: 'var(--txt3)', fontSize: '14px' }}>Loading reports...</div>
+        return (
+            <div style={{ padding: 24, color: 'var(--txt3)', fontSize: '14px' }}>
+                Loading reports...
+            </div>
+        )
     }
 
     return (
@@ -154,16 +162,26 @@ export default function DailyReportsPage() {
                             </thead>
                             <tbody>
                                 {filteredOrders.map(order => {
-                                    const methodStr = (order.payment_method || 'CASH').toLowerCase()
+                                    const methodStr = String(order.payment_method || 'CASH').toLowerCase()
                                     const isUnpaid = methodStr === 'unpaid'
                                     const isVisa = methodStr === 'visa' || methodStr === 'card'
-                                    const dateObj = new Date(order.created_at || order.date)
-                                    const formattedDate = `${dateObj.toLocaleDateString('en-GB')} - ${dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+
+                                    const rawTime = order.created_at || order.date
+                                    const dateObj = new Date(rawTime)
+                                    const isValidDate = !isNaN(dateObj.getTime())
+
+                                    const formattedDate = isValidDate
+                                        ? `${dateObj.toLocaleDateString('en-GB')} - ${dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+                                        : '—'
+
+                                    const invoiceNum = (order.invoice_number || order.order_number || order.id?.slice(0, 8) || '')
+                                        .toString()
+                                        .replace(/^#?/, '')
 
                                     return (
                                         <tr key={order.id}>
                                             <td style={{ fontWeight: '600', color: 'var(--gold)' }}>
-                                                #{(order.invoice_number || order.order_number || order.id?.slice(0, 8)).toString().replace(/^#?/, '')}
+                                                #{invoiceNum}
                                             </td>
                                             <td className="time-cell">
                                                 {formattedDate}
@@ -175,7 +193,7 @@ export default function DailyReportsPage() {
                                                 </span>
                                             </td>
                                             <td style={{ fontWeight: '700', textAlign: 'right' }}>
-                                                AED {fmtNum(order.total_amount || order.total)}
+                                                AED {fmtNum(order.total_amount || order.total || 0)}
                                             </td>
                                         </tr>
                                     )

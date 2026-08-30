@@ -6,12 +6,12 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
 
     const s = settings || {}
     const ts = fmtDateTime(order.created_at || order.time)
-    const items = order.items || []
+    const items = Array.isArray(order.items) ? order.items : []
 
     const pm = (order.payment_method || order.payment || '').toLowerCase()
     const paymentMethodDisplay =
         pm === 'cash' ? 'Cash' :
-        pm === 'unpaid' ? 'UNPAID / غير مدفوع' : 'Visa'
+            pm === 'unpaid' ? 'UNPAID / غير مدفوع' : 'Visa'
 
     const subtotal = Number(order.subtotal || 0)
 
@@ -109,7 +109,7 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
 
             <div className="r-row">
                 <span>Cashier</span>
-                <span>{order.cashier_name || order.user_name || 'Cashier'}</span>
+                <span>{order.cashier_name || order.cashierName || order.user_name || 'Cashier'}</span>
             </div>
 
             <div className="r-row">
@@ -124,12 +124,12 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
             {items.map((item, index) => {
                 const qty = Number(item.quantity || item.qty || 1)
                 const unitPrice = Number(item.unit_price || item.price || 0)
-                const lineTotal = unitPrice * qty
+                const lineTotal = Number(item.line_total || (unitPrice * qty))
                 const nameAr = item.product_name_ar || item.name_ar
                 const nameEn = item.product_name || item.name
 
                 return (
-                    <div key={index} style={{ marginBottom: '8px' }}>
+                    <div key={item.id || index} style={{ marginBottom: '8px' }}>
                         <div className="r-row" style={{ alignItems: 'flex-start' }}>
                             <span className="r-item-name" style={{ fontWeight: 600, flex: 1, paddingRight: '4px' }}>
                                 {qty} × {nameAr || nameEn}
@@ -195,7 +195,7 @@ const ReceiptPreview = forwardRef(({ order, settings }, ref) => {
                     <div className="r-row">
                         <span>Change / المتبقي</span>
                         <span className="r-bold">
-                            AED {fmtNum(order.change_amount || order.change || 0)}
+                            AED {fmtNum(order.change_amount || order.changeAmount || order.change || 0)}
                         </span>
                     </div>
                 </>

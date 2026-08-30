@@ -1,20 +1,14 @@
 // ============================================================
 // src/services/orderService.js
-// Order operations + realtime + analytics + stock deduction
 // ============================================================
 
 import { supabase, TABLES, VIEWS } from '../supabase/supabase.js'
 
-// مساعد لضبط تواريخ UTC لضمان استعلامات دقيقة
 const formatUtcRange = (dateFrom, dateTo) => {
   const fromIso = dateFrom ? `${dateFrom}T00:00:00.000Z` : null
   const toIso = dateTo ? `${dateTo}T23:59:59.999Z` : null
   return { fromIso, toIso }
 }
-
-// ============================================================
-// CREATE ORDER
-// ============================================================
 
 export async function createOrder(orderData, items) {
   const { data: { user } } = await supabase.auth.getUser()
@@ -62,52 +56,42 @@ export async function createOrder(orderData, items) {
     return { data: null, error: itemsError.message }
   }
 
-  // ── Automatically Update Inventory Post-Sale ──
-  for (const item of items) {
-    if (!item.product_id) continue
+  const inventoryUpdates = items
+    .filter(item => item.product_id)
+    .map(async (item) => {
+      const { data: product } = await supabase
+        .from(TABLES.PRODUCTS)
+        .select('category_slug, inventory_enabled, current_stock, current_weight, pieces_per_packet')
+        .eq('id', item.product_id)
+        .single()
 
-    const { data: product } = await supabase
-      .from(TABLES.PRODUCTS)
-      .select('category_slug, inventory_enabled, current_stock, current_weight, pieces_per_packet')
-      .eq('id', item.product_id)
-      .single()
+      if (!product || !product.inventory_enabled) return
 
-    if (product && product.inventory_enabled) {
+      let updatePayload = {}
+
       if (product.category_slug === 'drinks') {
         const newStock = Math.max(0, (product.current_stock || 0) - item.quantity)
         const pieces = product.pieces_per_packet || 1
         const newPackets = Math.floor(newStock / pieces)
-
-        await supabase
-          .from(TABLES.PRODUCTS)
-          .update({
-            current_stock: newStock,
-            number_of_packets: newPackets
-          })
-          .eq('id', item.product_id)
+        updatePayload = { current_stock: newStock, number_of_packets: newPackets }
       } else if (product.category_slug === 'desserts') {
         const newWeight = Math.max(0, (product.current_weight || 0) - item.quantity)
-        await supabase
-          .from(TABLES.PRODUCTS)
-          .update({ current_weight: newWeight })
-          .eq('id', item.product_id)
+        updatePayload = { current_weight: newWeight }
       } else {
-        // دعم خصم جميع أنواع المنتجات الأخرى
         const newStock = Math.max(0, (product.current_stock || 0) - item.quantity)
-        await supabase
-          .from(TABLES.PRODUCTS)
-          .update({ current_stock: newStock })
-          .eq('id', item.product_id)
+        updatePayload = { current_stock: newStock }
       }
-    }
-  }
+
+      await supabase
+        .from(TABLES.PRODUCTS)
+        .update(updatePayload)
+        .eq('id', item.product_id)
+    })
+
+  await Promise.all(inventoryUpdates)
 
   return { data: order, error: null }
 }
-
-// ============================================================
-// FETCH ORDERS
-// ============================================================
 
 export async function fetchOrders({
   limit = null,
@@ -139,10 +123,6 @@ export async function fetchOrders({
   return { data, error: null }
 }
 
-// ============================================================
-// FETCH SINGLE ORDER
-// ============================================================
-
 export async function fetchOrder(id) {
   const { data, error } = await supabase
     .from(TABLES.ORDERS)
@@ -153,10 +133,6 @@ export async function fetchOrder(id) {
   if (error) return { data: null, error: error.message }
   return { data, error: null }
 }
-
-// ============================================================
-// UPDATE ORDER STATUS
-// ============================================================
 
 export async function updateOrderStatus(id, status) {
   const { data, error } = await supabase
@@ -169,10 +145,6 @@ export async function updateOrderStatus(id, status) {
   if (error) return { data: null, error: error.message }
   return { data, error: null }
 }
-
-// ============================================================
-// DAILY SALES
-// ============================================================
 
 export async function fetchDailySales(days = 7, { dateFrom = null, dateTo = null } = {}) {
   let query = supabase.from(VIEWS.DAILY_SALES).select('*')
@@ -190,10 +162,6 @@ export async function fetchDailySales(days = 7, { dateFrom = null, dateTo = null
   if (error) return { data: [], error: error.message }
   return { data, error: null }
 }
-
-// ============================================================
-// TODAY SUMMARY
-// ============================================================
 
 export async function fetchTodaySummary({ dateFrom = null, dateTo = null } = {}) {
   const { fromIso, toIso } = formatUtcRange(
@@ -225,14 +193,10 @@ export async function fetchTodaySummary({ dateFrom = null, dateTo = null } = {})
   }
 }
 
-// ============================================================
-// YEAR SUMMARY
-// ============================================================
-
 export async function fetchYearSummary({ dateFrom = null, dateTo = null } = {}) {
   const now = new Date()
-  const yearStart = dateFrom ? dateFrom : `${now.getFullYear()}-01-01`
-  const yearEnd = dateTo ? dateTo : `${now.getFullYear()}-12-31`
+  const yearStart = dateFrom || `${now.getFullYear()}-01-01`
+  const yearEnd = dateTo || `${now.getFullYear()}-12-31`
   const { fromIso, toIso } = formatUtcRange(yearStart, yearEnd)
 
   const { data, error } = await supabase
@@ -244,27 +208,19 @@ export async function fetchYearSummary({ dateFrom = null, dateTo = null } = {}) 
 
   if (error) return { data: null, error: error.message }
 
-  const summary = {
-    totalRevenue: 0,
-    totalVat: 0,
-    totalDiscount: 0,
-    totalSubtotal: 0,
-    orderCount: data.length
-  }
-
-  data.forEach(order => {
-    summary.totalRevenue += Number(order.total_amount || 0)
-    summary.totalVat += Number(order.vat_amount || 0)
-    summary.totalDiscount += Number(order.discount_amount || 0)
-    summary.totalSubtotal += Number(order.subtotal || 0)
-  })
+  const summary = (data || []).reduce(
+    (acc, order) => {
+      acc.totalRevenue += Number(order.total_amount || 0)
+      acc.totalVat += Number(order.vat_amount || 0)
+      acc.totalDiscount += Number(order.discount_amount || 0)
+      acc.totalSubtotal += Number(order.subtotal || 0)
+      return acc
+    },
+    { totalRevenue: 0, totalVat: 0, totalDiscount: 0, totalSubtotal: 0, orderCount: data.length }
+  )
 
   return { data: summary, error: null }
 }
-
-// ============================================================
-// BEST SELLERS
-// ============================================================
 
 export async function fetchBestSellers(limit = 5, { dateFrom = null, dateTo = null } = {}) {
   if (dateFrom && dateTo) {
@@ -279,9 +235,9 @@ export async function fetchBestSellers(limit = 5, { dateFrom = null, dateTo = nu
     if (error) return { data: [], error: error.message }
 
     const aggregation = {}
-    data.forEach(item => {
-      aggregation[item.product_name] = (aggregation[item.product_name] || 0) + Number(item.quantity || 0)
-    })
+      ; (data || []).forEach(item => {
+        aggregation[item.product_name] = (aggregation[item.product_name] || 0) + Number(item.quantity || 0)
+      })
 
     const sorted = Object.entries(aggregation)
       .map(([product_name, total_qty]) => ({ product_name, total_qty }))
@@ -300,10 +256,6 @@ export async function fetchBestSellers(limit = 5, { dateFrom = null, dateTo = nu
   return { data, error: null }
 }
 
-// ============================================================
-// HOURLY SALES
-// ============================================================
-
 export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) {
   let query = supabase
     .from(TABLES.ORDERS)
@@ -318,12 +270,10 @@ export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) 
   const { data, error } = await query
   if (error) return { data: [], error: error.message }
 
-  const buckets = {}
-  for (let i = 0; i < 24; i++) buckets[i] = 0
-
+  const buckets = Array(24).fill(0)
     ; (data || []).forEach(o => {
       const hour = new Date(o.created_at).getHours()
-      buckets[hour] = (buckets[hour] || 0) + Number(o.total_amount || 0)
+      buckets[hour] += Number(o.total_amount || 0)
     })
 
   const formatHour = (h) => {
@@ -333,17 +283,13 @@ export async function fetchHourlySales({ dateFrom = null, dateTo = null } = {}) 
   }
 
   return {
-    data: Object.entries(buckets).map(([hour, total]) => ({
-      label: formatHour(Number(hour)),
+    data: buckets.map((total, hour) => ({
+      label: formatHour(hour),
       revenue: total,
     })),
     error: null,
   }
 }
-
-// ============================================================
-// CATEGORY REVENUE BREAKDOWN 
-// ============================================================
 
 export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } = {}) {
   let query = supabase
@@ -382,10 +328,6 @@ export async function fetchCategoryBreakdown({ dateFrom = null, dateTo = null } 
     error: null,
   }
 }
-
-// ============================================================
-// REALTIME SUBSCRIPTION
-// ============================================================
 
 export function subscribeToOrders({ onInsert, onUpdate } = {}) {
   const channelName = `orders-changes-${Date.now()}`

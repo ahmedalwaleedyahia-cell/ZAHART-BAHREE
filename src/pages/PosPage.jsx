@@ -21,14 +21,14 @@ import {
 } from 'lucide-react'
 
 export default function PosPage({ showToast }) {
-    const { availableProducts, categories, loading } = useProducts()
+    const { availableProducts = [], categories = [], loading } = useProducts()
     const {
-        cart, addToCart, removeFromCart, updateQty, clearCart,
+        cart = [], addToCart, removeFromCart, updateQty, clearCart,
         paymentMethod, setPaymentMethod,
         discountPct, setDiscountPct,
         orderNotes, setOrderNotes,
         cashGiven, setCashGiven,
-        subtotal, discountAmount, vatAmount, totalAmount, changeAmount, cartCount,
+        subtotal = 0, discountAmount = 0, vatAmount = 0, totalAmount = 0, changeAmount = 0, cartCount = 0,
         processing, lastOrder, processPayment,
     } = useOrders()
 
@@ -42,9 +42,12 @@ export default function PosPage({ showToast }) {
     const [failedImages, setFailedImages] = useState({})
 
     const receiptRef = useRef(null)
+
+    const receiptNum = (lastOrder?.invoice_number || lastOrder?.order_number || lastOrder?.id?.slice(0, 8) || '1').toString().replace(/^#?/, '')
+
     const handlePrint = useReactToPrint({
         contentRef: receiptRef,
-        documentTitle: `Receipt-${lastOrder?.invoice_number || lastOrder?.order_number || 1}`,
+        documentTitle: `Receipt-${receiptNum}`,
         removeAfterPrint: true,
         pageStyle: `
 @page {
@@ -76,12 +79,15 @@ body * {
     });
 
     const filtered = useMemo(() => {
+        if (!Array.isArray(availableProducts)) return []
+        const q = search.trim().toLowerCase()
+
         return availableProducts.filter(p =>
             (selectedCat === 'all' || p.category_slug === selectedCat) &&
             (
-                !search ||
-                (p.name || '').toLowerCase().includes(search.toLowerCase()) ||
-                (p.name_ar && p.name_ar.includes(search))
+                !q ||
+                String(p.name || '').toLowerCase().includes(q) ||
+                String(p.name_ar || '').includes(q)
             )
         )
     }, [availableProducts, selectedCat, search])
@@ -94,7 +100,7 @@ body * {
         if (processing) return
         const { error } = await processPayment()
         if (error) {
-            showToast(error, 'error')
+            showToast?.(error, 'error')
             return
         }
         setSuccessModal(true)
@@ -403,7 +409,7 @@ body * {
                         <div className="success-tick">✓</div>
                         <h3>Order Saved!</h3>
                         <p style={{ marginTop: 4 }}>
-                            Order #{lastOrder.invoice_number || lastOrder.order_number || '1'} completed
+                            Order #{receiptNum} completed
                             {lastOrder.payment_method === 'unpaid' && <span style={{ color: '#ef4444', fontWeight: 'bold', display: 'block', marginTop: '4px' }}>[UNPAID / غير مدفوع]</span>}
                         </p>
                         {Number(lastOrder.change_amount) > 0 && (

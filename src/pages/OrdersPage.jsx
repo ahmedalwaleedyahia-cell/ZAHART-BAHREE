@@ -13,21 +13,32 @@ import KitchenReceipt from '../components/ui/KitchenReceipt.jsx'
 import { ClipboardList, Printer, Search, Utensils, Pencil } from 'lucide-react'
 import { useReactToPrint } from 'react-to-print'
 
+// دالة استخراج اسم المنتج لضمان قراءة الاسم بغض النظر عن مصدره
+function getItemName(item) {
+  if (!item) return ''
+  if (item.products) {
+    return item.products.name_ar || item.products.name || item.products.name_en || ''
+  }
+  return item.product_name_ar || item.name_ar || item.product_name || item.name || item.product_name_en || ''
+}
+
 export default function OrdersPage({ showToast }) {
   const { orders, loading, updateOrderStatus, updatePaymentMethod, fetchOrders } = useOrders()
   const { products } = useProducts()
   const { isAdmin } = useAuth()
   const { settings } = useSettings()
-  
+
   const [receiptOrder, setReceiptOrder] = useState(null)
   const [editingOrder, setEditingOrder] = useState(null)
   const [search, setSearch] = useState('')
 
   const printContainerRef = useRef(null)
 
+  const receiptNum = receiptOrder?.invoice_number || receiptOrder?.order_number || receiptOrder?.id?.slice(0, 8) || '1'
+
   const handlePrint = useReactToPrint({
     contentRef: printContainerRef,
-    documentTitle: `Receipt-${receiptOrder?.invoice_number || receiptOrder?.order_number || '1'}`,
+    documentTitle: `Receipt-${receiptNum}`,
     removeAfterPrint: true,
     pageStyle: `
 @page {
@@ -62,29 +73,34 @@ body * {
     if (!confirm('Cancel this order?')) return
     const { error } = await updateOrderStatus(id, 'cancelled')
     if (error) {
-      showToast(error, 'error')
+      showToast?.(error, 'error')
     } else {
-      showToast('Order cancelled', 'info')
+      showToast?.('Order cancelled', 'info')
     }
   }
 
   async function handlePaymentChange(orderId, newMethod) {
     const { error } = await updatePaymentMethod(orderId, newMethod)
     if (error) {
-      showToast(error, 'error')
+      showToast?.(error, 'error')
     } else {
-      showToast(`Payment method updated to ${newMethod.toUpperCase()}`, 'success')
+      showToast?.(`Payment method updated to ${newMethod.toUpperCase()}`, 'success')
     }
   }
 
   const filteredOrders = useMemo(() => {
+    if (!Array.isArray(orders)) return []
     if (!search.trim()) return orders
-    const q = search.toLowerCase()
+
+    const q = search.trim().toLowerCase().replace(/^#?/, '')
     return orders.filter(o => {
-      const invNum = String(o.invoice_number || o.order_number || '')
-      const cashier = (o.cashier_name || '').toLowerCase()
-      const method = (o.payment_method || '').toLowerCase()
-      return invNum.toLowerCase().includes(q) || cashier.includes(q) || method.includes(q)
+      const invNum = String(o.invoice_number || o.order_number || o.id || '').toLowerCase()
+      const cashier = String(o.cashier_name || '').toLowerCase()
+      const method = String(o.payment_method || '').toLowerCase()
+      const itemsList = Array.isArray(o.items) && o.items.length > 0 ? o.items : (o.order_items || [])
+      const itemsText = itemsList.map(i => getItemName(i)).join(' ').toLowerCase()
+
+      return invNum.includes(q) || cashier.includes(q) || method.includes(q) || itemsText.includes(q)
     })
   }, [orders, search])
 
@@ -104,7 +120,7 @@ body * {
           <input
             className="search-input"
             type="text"
-            placeholder="Search orders, cashier, payment..."
+            placeholder="Search orders, cashier, items, payment..."
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ width: '100%', paddingLeft: '44px', paddingRight: search ? '40px' : '16px' }}
@@ -150,7 +166,10 @@ body * {
                 </thead>
                 <tbody>
                   {filteredOrders.map(o => {
-                    const method = (o.payment_method || 'cash').toLowerCase()
+                    const method = String(o.payment_method || 'cash').toLowerCase()
+                    const displayInv = (o.invoice_number || o.order_number || o.id?.slice(0, 8) || '0').toString().replace(/^#?/, '')
+                    const itemList = Array.isArray(o.items) && o.items.length > 0 ? o.items : (o.order_items || [])
+
                     return (
                       <tr
                         key={o.id}
@@ -158,14 +177,33 @@ body * {
                       >
                         <td>
                           <span className="order-num">
-                            INV-{String(o.invoice_number || o.order_number).padStart(5, '0')}
+                            INV-{displayInv.padStart(5, '0')}
                           </span>
                         </td>
-                        <td className="items-cell">
-                          {o.items?.slice(0, 2).map(i => `${i.quantity}× ${i.product_name}`).join(', ')}
-                          {(o.items?.length || 0) > 2 && ` +${o.items.length - 2}`}
+                        <td className="items-cell" style={{ maxWidth: '280px' }}>
+                          {itemList.length > 0 ? (
+                            <>
+                              {itemList.slice(0, 2).map((i, idx) => {
+                                const qty = i.quantity || i.qty || 1
+                                const name = getItemName(i) || 'صنف غير مسمى'
+                                return (
+                                  <span key={idx}>
+                                    {idx > 0 && ', '}
+                                    {qty}× {name}
+                                  </span>
+                                )
+                              })}
+                              {itemList.length > 2 && (
+                                <span style={{ color: 'var(--gold, #c5a059)', fontWeight: 'bold' }}>
+                                  {` +${itemList.length - 2}`}
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span style={{ opacity: 0.5, fontStyle: 'italic' }}>No items</span>
+                          )}
                         </td>
-                        <td style={{ fontSize: 12.5 }}>{o.cashier_name}</td>
+                        <td style={{ fontSize: 12.5 }}>{o.cashier_name || '—'}</td>
                         <td>
                           <select
                             value={method}
@@ -188,7 +226,7 @@ body * {
                           </select>
                         </td>
                         <td className="time-cell">{fmtDateTime(o.created_at)}</td>
-                        <td><strong>AED {fmtNum(o.total_amount)}</strong></td>
+                        <td><strong>AED {fmtNum(o.total_amount || 0)}</strong></td>
                         <td className="action-cell" style={{ display: 'flex', gap: '4px', alignItems: 'center', justifyContent: 'flex-end' }}>
                           <button
                             className="btn btn-ghost btn-sm"
@@ -197,7 +235,7 @@ body * {
                           >
                             <Printer size={13} strokeWidth={2} />
                           </button>
-                          
+
                           {o.status !== 'cancelled' && (
                             <button
                               className="btn btn-ghost btn-sm"
@@ -232,7 +270,7 @@ body * {
         <Modal onClose={() => setReceiptOrder(null)}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
             <div className="modal-title" style={{ marginBottom: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>Receipt #{receiptOrder.order_number}</span>
+              <span>Receipt #{receiptNum}</span>
               <span className="badge badge-gold" style={{ fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                 <Utensils size={12} /> Includes Kitchen Copy
               </span>
@@ -272,8 +310,6 @@ body * {
           onOrderUpdated={() => {
             if (typeof fetchOrders === 'function') {
               fetchOrders()
-            } else {
-              window.location.reload()
             }
           }}
         />

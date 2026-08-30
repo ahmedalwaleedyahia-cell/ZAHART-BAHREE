@@ -5,14 +5,15 @@ import { Utensils } from 'lucide-react'
 const KitchenReceipt = forwardRef(({ order }, ref) => {
     if (!order) return null
 
-    const items = order.items || []
+    const items = Array.isArray(order.items) ? order.items : []
     const pm = (order.payment_method || order.payment || '').toLowerCase()
     const paymentMethodDisplay =
         pm === 'cash' ? 'Cash' :
-        pm === 'unpaid' ? 'UNPAID / غير مدفوع' : 'Visa'
+            pm === 'unpaid' ? 'UNPAID / غير مدفوع' : 'Visa'
 
     const totalAmount = Number(order.total_amount || order.total || 0)
     const ts = fmtDateTime(order.created_at || order.time)
+    const orderNotes = order.notes || order.comment || ''
 
     return (
         <div
@@ -51,7 +52,7 @@ const KitchenReceipt = forwardRef(({ order }, ref) => {
                     const nameAr = item.product_name_ar || item.name_ar
                     const nameEn = item.product_name || item.name
                     return (
-                        <div key={idx} style={{ marginBottom: '6px', fontSize: '15px', fontWeight: '800' }}>
+                        <div key={item.id || idx} style={{ marginBottom: '6px', fontSize: '15px', fontWeight: '800' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span>{qty} × {nameAr || nameEn}</span>
                             </div>
@@ -64,6 +65,15 @@ const KitchenReceipt = forwardRef(({ order }, ref) => {
                     )
                 })}
             </div>
+
+            {orderNotes && (
+                <div style={{ borderBottom: '1px dashed #000', paddingBottom: '6px', marginBottom: '6px' }}>
+                    <div style={{ fontWeight: '800', fontSize: '12px', color: '#dc2626' }}>NOTES / ملاحظات:</div>
+                    <div style={{ fontSize: '12px', fontWeight: '700', fontStyle: 'italic', marginTop: '2px' }}>
+                        {orderNotes}
+                    </div>
+                </div>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginTop: '6px' }}>
                 <span>Payment Method:</span>
