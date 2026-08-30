@@ -1,349 +1,413 @@
-import { useState, useMemo } from 'react'
-import { useOrders } from '../context/OrdersContext'
-import { useProducts } from '../context/ProductsContext'
+// Analytics and Report views
+// Path: src/pages/AnalyticsPage.jsx
+import { useEffect, useState, useMemo } from 'react'
+import { TrendingUp, Clock3, PieChart, CreditCard } from 'lucide-react'
 import { fmtNum } from '../utils/format.js'
-import { ShoppingBag, CheckCircle, AlertCircle, Layers, Utensils, Coffee, Cake } from 'lucide-react'
+import { useProducts } from '../context/ProductsContext.jsx'
+import { useOrders } from '../context/OrdersContext.jsx'
 
+import {
+  fetchDailySales,
+  fetchHourlySales,
+  fetchCategoryBreakdown,
+} from '../services/orderService.js'
+
+import Skeleton from '../components/ui/Skeleton.jsx'
+import BarChart from '../components/ui/BarChart.jsx'
+import DonutChart from '../components/ui/DonutChart.jsx'
+import PaymentSplit from '../components/ui/PaymentSplit.jsx'
+import Empty from '../components/ui/Empty.jsx'
 import UnifiedStatCards from '../components/dashboard/UnifiedStatCards.jsx'
-import DashboardFilter from '../components/dashboard/DashboardFilter.jsx'
+
 import '../styles/unified-cards.css'
 
-// دالة توحيد تحويل التاريخ للتوقيت المحلي للجهاز YYYY-MM-DD
-const getLocalDateString = (dateInput) => {
-  if (!dateInput) return ''
-  const d = typeof dateInput === 'string' && dateInput.includes('T')
-    ? new Date(dateInput)
-    : new Date(dateInput)
-
-  if (isNaN(d.getTime())) return ''
-
-  const year = d.getFullYear()
-  const month = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
+// ================= COLORS =================
+const CAT_COLORS = {
+  food: '#C9A96E',
+  drinks: '#3B82F6',
+  desserts: '#22C55E',
+  other: '#888888',
 }
 
+// ================= PERIODS =================
+const PERIODS = [
+  { key: 'daily', label: 'Last 7 Days', days: 7 },
+  { key: 'weekly', label: 'Last 28 Days', days: 28 },
+  { key: 'monthly', label: 'Last 90 Days', days: 90 },
+]
+
+// ================= SAFE CALL =================
+function safeCall(fn, ...args) {
+  if (typeof fn !== 'function') {
+    return Promise.resolve({ data: [], error: null })
+  }
+  return fn(...args)
+}
+
+// ================= CATEGORY NORMALIZER =================
+function normalizeCategory(category) {
+  if (!category) return 'other'
+
+  const c = String(category).trim().toLowerCase()
+
+  if (c === 'food' || c === 'foods') return 'food'
+  if (c === 'drink' || c === 'drinks') return 'drinks'
+  if (c === 'dessert' || c === 'desserts') return 'desserts'
+
+  return 'other'
+}
+
+// ================= COMPONENT =================
 export default function AnalyticsPage() {
-  const { orders, loading: ordersLoading } = useOrders()
-  const { availableProducts, loading: productsLoading } = useProducts()
+  const [period, setPeriod] = useState('daily')
+  const [dailyData, setDailyData] = useState([])
+  const [hourly, setHourly] = useState([])
+  const [categoryData, setCategoryData] = useState([])
+  const [loading, setLoading] = useState(true)
 
-  const loading = ordersLoading || productsLoading
+  const { availableProducts } = useProducts()
+  const { orders } = useOrders()
 
-  // الضبط الافتراضي لتاريخ اليوم محلياً
-  const [startDate, setStartDate] = useState(() => getLocalDateString(new Date()))
-  const [endDate, setEndDate] = useState(() => getLocalDateString(new Date()))
-
-  // فلتر الفئات Selected Category Filter (all, food, drinks, desserts)
-  const [selectedCat, setSelectedCat] = useState('all')
-
-  // خريطة لربط المنتجات بفئاتها
+  // خريطة لربط المنتجات بفئاتها بدقة متناهية بناءً على النظام المحدث
   const productCategoryMap = useMemo(() => {
     const map = {}
     if (availableProducts) {
       availableProducts.forEach(p => {
-        map[p.id] = p.category_slug || 'food'
+        map[p.id] = normalizeCategory(p.category_slug || p.category)
       })
     }
     return map
   }, [availableProducts])
 
-  // 1. تصفية الطلبات حسب التاريخ أولاً
-  const dateFilteredOrders = useMemo(() => {
+  // ================= FETCH DATA =================
+  useEffect(() => {
+    let alive = true
+
+    const load = async () => {
+      setLoading(true)
+
+      const days =
+        PERIODS.find(p => p.key === period)?.days || 7
+
+      try {
+        const [d, h, c] = await Promise.all([
+          safeCall(fetchDailySales, days),
+          safeCall(fetchHourlySales),
+          safeCall(fetchCategoryBreakdown),
+        ])
+
+        if (!alive) return
+
+        if (Array.isArray(d?.data)) setDailyData(d.data)
+        if (Array.isArray(h?.data)) setHourly(h.data)
+        if (Array.isArray(c?.data)) setCategoryData(c.data)
+
+      } catch (err) {
+        console.error('[Analytics Error]', err)
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    load()
+    return () => { alive = false }
+  }, [period])
+
+  // فلترة الطلبات وفقاً للفترة الزمنية المحددة (الأيام) لضمان دقة الحسابات التراكمية والكروت
+  const periodFilteredOrders = useMemo(() => {
     if (!orders) return []
+    const days = PERIODS.find(p => p.key === period)?.days || 7
+    const cutoffDate = new Date()
+    cutoffDate.setDate(cutoffDate.getDate() - days)
 
-    return orders.filter(order => {
-      if (order.status === 'cancelled') return false
-
-      const rawDate = order.created_at || order.date
-      const orderDateStr = getLocalDateString(rawDate)
-      if (!orderDateStr) return false
-
-      if (startDate && orderDateStr < startDate) return false
-      if (endDate && orderDateStr > endDate) return false
-
-      return true
+    return orders.filter(o => {
+      if (o.status === 'cancelled') return false
+      const rawDate = o.created_at || o.date
+      if (!rawDate) return false
+      const orderDate = new Date(rawDate)
+      return !isNaN(orderDate.getTime()) && orderDate >= cutoffDate
     })
-  }, [orders, startDate, endDate])
+  }, [orders, period])
 
-  // 2. تصفية الطلبات المعروضة بناءً على الفئة المختارة
-  const displayedOrders = useMemo(() => {
-    if (selectedCat === 'all') return dateFilteredOrders
+  // ================= METRICS =================
+  const totalRev = useMemo(
+    () => periodFilteredOrders.reduce((a, o) => {
+      if ((o.payment_method || '').toLowerCase() === 'unpaid') return a
+      return a + Number(o.total_amount || o.total || 0)
+    }, 0),
+    [periodFilteredOrders]
+  )
 
-    return dateFilteredOrders.filter(order => {
-      const items = order.items || []
-      return items.some(item => {
-        const catSlug = productCategoryMap[item.product_id] || 'food'
-        return catSlug === selectedCat
-      })
-    })
-  }, [dateFilteredOrders, selectedCat, productCategoryMap])
+  const totalOrds = useMemo(
+    () => periodFilteredOrders.length,
+    [periodFilteredOrders]
+  )
 
-  // 3. حساب الإحصائيات المباشرة بناءً على الفئة المحددة لتتأثر بها الكروت فوراً
-  const stats = useMemo(() => {
-    let totalSales = 0
-    let cashSales = 0
-    let visaSales = 0
-    let unpaidSales = 0
+  const cashRev = useMemo(
+    () => periodFilteredOrders.reduce((a, o) => {
+      const method = (o.payment_method || '').toLowerCase()
+      if (method === 'unpaid') return a
+      if (method === 'cash' || !method) return a + Number(o.total_amount || o.total || 0)
+      return a
+    }, 0),
+    [periodFilteredOrders]
+  )
 
-    dateFilteredOrders.forEach(order => {
-      const method = (order.payment_method || '').toLowerCase()
-      const items = order.items || []
+  const visaRev = useMemo(
+    () => periodFilteredOrders.reduce((a, o) => {
+      const method = (o.payment_method || '').toLowerCase()
+      if (method === 'visa' || method === 'card') return a + Number(o.total_amount || o.total || 0)
+      return a
+    }, 0),
+    [periodFilteredOrders]
+  )
 
-      let categoryAmountInOrder = 0
+  // ================= CARDS =================
+  const unifiedAnalyticsCards = useMemo(() => ([
+    {
+      id: 'an-rev',
+      label: 'Revenue (Selected Period)',
+      value: `AED ${fmtNum(totalRev)}`,
+      type: 'revenue',
+      subtitle: 'Gross interval value',
+    },
+    {
+      id: 'an-ord',
+      label: 'Total Orders',
+      value: totalOrds,
+      type: 'orders',
+      subtitle: 'Completed orders',
+    },
+    {
+      id: 'an-cash',
+      label: 'Cash Revenue',
+      value: `AED ${fmtNum(cashRev)}`,
+      type: 'avg_order',
+      subtitle: 'Cash payments',
+    },
+    {
+      id: 'an-visa',
+      label: 'Card Revenue',
+      value: `AED ${fmtNum(visaRev)}`,
+      type: 'vat',
+      subtitle: 'Card payments',
+    }
+  ]), [totalRev, totalOrds, cashRev, visaRev])
 
-      if (selectedCat === 'all') {
-        categoryAmountInOrder = Number(order.total_amount || order.total || 0)
-      } else {
+  // ================= CATEGORY DATA (Accurate Calculation) =================
+  const catDonutData = useMemo(() => {
+    const grouped = { food: 0, drinks: 0, desserts: 0, other: 0 }
+
+    // الاعتماد المباشر على تفاصيل الأصناف داخل الطلبات لضمان حساب دقيق ومطابق لصفحة التقارير اليومية
+    if (periodFilteredOrders.length > 0) {
+      periodFilteredOrders.forEach(order => {
+        if ((order.payment_method || '').toLowerCase() === 'unpaid') return
+        const items = order.items || order.order_items || []
+
         items.forEach(item => {
-          const catSlug = productCategoryMap[item.product_id] || 'food'
-          if (catSlug === selectedCat) {
-            const lineTotal = Number(item.line_total || (Number(item.unit_price || item.price || 0) * Number(item.quantity || item.qty || 1)))
-            categoryAmountInOrder += lineTotal
+          const catSlug = productCategoryMap[item.product_id] || normalizeCategory(item.category || item.category_slug)
+          const lineTotal = Number(item.line_total || (Number(item.unit_price || item.price || 0) * Number(item.quantity || item.qty || 1)))
+
+          if (grouped[catSlug] !== undefined) {
+            grouped[catSlug] += lineTotal
+          } else {
+            grouped.other += lineTotal
           }
         })
-      }
-
-      if (categoryAmountInOrder > 0) {
-        if (method === 'unpaid') {
-          unpaidSales += categoryAmountInOrder
-        } else {
-          totalSales += categoryAmountInOrder
-          if (method === 'cash') cashSales += categoryAmountInOrder
-          else if (method === 'visa' || method === 'card') visaSales += categoryAmountInOrder
-          else cashSales += categoryAmountInOrder
-        }
-      }
-    })
-
-    return {
-      totalSales,
-      cashSales,
-      visaSales,
-      unpaidSales,
-      count: displayedOrders.length
+      })
+    } else if (categoryData?.length) {
+      // Fallback في حال الاعتماد على الـ API مباشرة إذا لم توجد طلبات في الـ Context
+      categoryData.forEach(item => {
+        const key = normalizeCategory(item.category)
+        grouped[key] = (grouped[key] || 0) + Number(item.revenue || 0)
+      })
     }
-  }, [dateFilteredOrders, selectedCat, productCategoryMap, displayedOrders])
 
-  const dailyCards = useMemo(() => ([
-    {
-      id: 'dr-paid',
-      label: 'Paid Revenue',
-      value: `AED ${fmtNum(stats.totalSales)}`,
-      type: 'revenue',
-      subtitle: selectedCat === 'all' ? 'Total completed sales' : `${selectedCat.toUpperCase()} revenue`
-    },
-    {
-      id: 'dr-cash',
-      label: 'Cash Sales',
-      value: `AED ${fmtNum(stats.cashSales)}`,
-      type: 'profit',
-      subtitle: 'Cash payments'
-    },
-    {
-      id: 'dr-visa',
-      label: 'Visa / Card Sales',
-      value: `AED ${fmtNum(stats.visaSales)}`,
-      type: 'salary',
-      subtitle: 'Electronic payments'
-    },
-    {
-      id: 'dr-unpaid',
-      label: 'Unpaid Sales',
-      value: `AED ${fmtNum(stats.unpaidSales)}`,
-      type: 'loss',
-      subtitle: 'Pending collection'
-    }
-  ]), [stats, selectedCat])
+    const result = Object.entries(grouped)
+      .filter(([_, value]) => value > 0)
+      .map(([key, value]) => ({
+        label: key,
+        value,
+        color: CAT_COLORS[key] || CAT_COLORS.other,
+      }))
 
-  const handleFilterChange = ({ dateFrom, dateTo }) => {
-    setStartDate(dateFrom)
-    setEndDate(dateTo)
-  }
+    return result
+  }, [periodFilteredOrders, productCategoryMap, categoryData])
 
-  if (loading) {
-    return (
-      <div style={{ padding: 24, color: 'var(--txt3)', fontSize: '14px' }}>
-        Loading analytics...
-      </div>
-    )
-  }
+  // ================= HOURLY (FIXED MATCHING) =================
+  const hourlyChartData = useMemo(() => {
+    const customHourOrder = [
+      7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23,
+      0, 1
+    ];
+    return customHourOrder.map(hour => {
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+      const hourLabel = `${displayHour} ${ampm}`;
 
+      const match = hourly.find(i => {
+        if (!i) return false;
+        const recordLabel = String(i.label || i.hour || '').trim().toLowerCase();
+
+        return recordLabel === hourLabel.toLowerCase() ||
+          recordLabel === String(hour) ||
+          recordLabel === `${hour}:00`;
+      });
+
+      return {
+        label: hourLabel,
+        value: match ? Number(match.revenue || match.total_revenue || 0) : 0,
+      };
+    });
+  }, [hourly]);
+
+  // ================= TREND =================
+  const trendData = useMemo(() =>
+    dailyData.map(d => {
+      let label = d.sale_date
+
+      try {
+        label = new Date(d.sale_date).toLocaleDateString('en-AE', {
+          month: 'short',
+          day: 'numeric',
+        })
+      } catch { }
+
+      return {
+        label,
+        value: Number(d.total_revenue || d.revenue || 0),
+      }
+    }),
+    [dailyData]
+  )
+
+  const hasPaymentData = cashRev > 0 || visaRev > 0
+
+  // ================= UI =================
   return (
     <div className="scroll-view">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
-        <div>
-          <h1 className="page-title" style={{ margin: 0 }}>Analytics</h1>
-          <p className="page-sub">Comprehensive overview of sales, categories, and financial metrics</p>
-        </div>
 
-        {/* --- الـ Custom Range وأزرار الفئات تحته مباشرة في نفس الجهة --- */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '10px' }}>
-          <DashboardFilter
-            dateFrom={startDate}
-            dateTo={endDate}
-            onFilterChange={handleFilterChange}
-          />
-
-          {/* أزرار الفئات تحت التاريخ مباشرة */}
-          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+      {/* PERIOD SELECTOR */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        marginBottom: 16
+      }}>
+        <div style={{
+          display: 'inline-flex',
+          background: 'var(--surf2)',
+          padding: 4,
+          borderRadius: 8,
+          gap: 4
+        }}>
+          {PERIODS.map(p => (
             <button
-              type="button"
-              onClick={() => setSelectedCat('all')}
+              key={p.key}
+              onClick={() => setPeriod(p.key)}
               style={{
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                borderRadius: '6px',
+                padding: '6px 14px',
+                border: 'none',
                 cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                border: '1px solid',
-                transition: 'all 0.2s ease',
-                background: selectedCat === 'all' ? 'var(--gold)' : 'transparent',
-                borderColor: selectedCat === 'all' ? 'var(--gold)' : 'var(--border, #333)',
-                color: selectedCat === 'all' ? '#000' : 'var(--txt2)'
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 500,
+                background: period === p.key ? 'var(--surf3)' : 'transparent',
+                color: period === p.key ? 'var(--txt1)' : 'var(--txt3)',
               }}
             >
-              <Layers size={13} /> All
+              {p.label}
             </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedCat('food')}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                border: '1px solid',
-                transition: 'all 0.2s ease',
-                background: selectedCat === 'food' ? 'var(--gold)' : 'transparent',
-                borderColor: selectedCat === 'food' ? 'var(--gold)' : 'var(--border, #333)',
-                color: selectedCat === 'food' ? '#000' : 'var(--txt2)'
-              }}
-            >
-              <Utensils size={13} /> Food
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedCat('drinks')}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                border: '1px solid',
-                transition: 'all 0.2s ease',
-                background: selectedCat === 'drinks' ? 'var(--gold)' : 'transparent',
-                borderColor: selectedCat === 'drinks' ? 'var(--gold)' : 'var(--border, #333)',
-                color: selectedCat === 'drinks' ? '#000' : 'var(--txt2)'
-              }}
-            >
-              <Coffee size={13} /> Drinks
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedCat('desserts')}
-              style={{
-                padding: '5px 12px',
-                fontSize: '12px',
-                fontWeight: '600',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                border: '1px solid',
-                transition: 'all 0.2s ease',
-                background: selectedCat === 'desserts' ? 'var(--gold)' : 'transparent',
-                borderColor: selectedCat === 'desserts' ? 'var(--gold)' : 'var(--border, #333)',
-                color: selectedCat === 'desserts' ? '#000' : 'var(--txt2)'
-              }}
-            >
-              <Cake size={13} /> Desserts
-            </button>
-          </div>
+          ))}
         </div>
       </div>
 
-      <UnifiedStatCards cards={dailyCards} loading={loading} className="mb-4" />
+      {/* CARDS */}
+      <UnifiedStatCards
+        cards={unifiedAnalyticsCards}
+        loading={loading}
+      />
 
-      <div className="card" style={{ marginTop: '20px' }}>
-        <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      {/* CATEGORY + PAYMENT */}
+      <div className="two-col" style={{ marginBottom: 14 }}>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              <PieChart size={15} /> Category Revenue
+            </span>
+          </div>
+
+          {loading ? (
+            <Skeleton rows={3} />
+          ) : catDonutData.length === 0 ? (
+            <Empty
+              icon={<PieChart size={32} />}
+              text="No category data"
+            />
+          ) : (
+            <DonutChart data={catDonutData} />
+          )}
+        </div>
+
+        <div className="card">
+          <div className="card-header">
+            <span className="card-title">
+              <CreditCard size={15} /> Payment Split
+            </span>
+          </div>
+
+          {loading ? (
+            <Skeleton rows={3} />
+          ) : !hasPaymentData ? (
+            <Empty
+              icon={<CreditCard size={32} />}
+              text="No payment data"
+            />
+          ) : (
+            <PaymentSplit cash={cashRev} visa={visaRev} />
+          )}
+        </div>
+
+      </div>
+
+      {/* HOURLY */}
+      <div className="card">
+        <div className="card-header">
           <span className="card-title">
-            <ShoppingBag size={17} style={{ color: 'var(--gold)' }} /> Orders Summary ({displayedOrders.length})
+            <Clock3 size={15} /> Revenue by Hour
           </span>
         </div>
 
-        {displayedOrders.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--txt3)', fontSize: '13px' }}>
-            No orders found for the selected category/date range.
-          </div>
+        {loading ? (
+          <Skeleton rows={3} />
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>INVOICE #</th>
-                  <th>TIME</th>
-                  <th>PAYMENT METHOD</th>
-                  <th style={{ textAlign: 'right' }}>TOTAL (AED)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {displayedOrders.map(order => {
-                  const methodStr = (order.payment_method || 'CASH').toLowerCase()
-                  const isUnpaid = methodStr === 'unpaid'
-                  const isVisa = methodStr === 'visa' || methodStr === 'card'
-
-                  const rawTime = order.created_at || order.date
-                  const dateObj = new Date(rawTime)
-                  const isValidDate = !isNaN(dateObj.getTime())
-
-                  const formattedDate = isValidDate
-                    ? `${dateObj.toLocaleDateString('en-GB')} - ${dateObj.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`
-                    : '—'
-
-                  const invoiceNum = (order.invoice_number || order.order_number || order.id?.slice(0, 8) || '')
-                    .toString()
-                    .replace(/^#?/, '')
-
-                  return (
-                    <tr key={order.id}>
-                      <td style={{ fontWeight: '600', color: 'var(--gold)' }}>
-                        #{invoiceNum}
-                      </td>
-                      <td className="time-cell">
-                        {formattedDate}
-                      </td>
-                      <td>
-                        <span className={`badge ${isUnpaid ? 'badge-red' : isVisa ? 'badge-blue' : 'badge-green'}`}>
-                          {isUnpaid ? <AlertCircle size={11} /> : <CheckCircle size={11} />}
-                          {methodStr.toUpperCase()}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: '700', textAlign: 'right' }}>
-                        AED {fmtNum(order.total_amount || order.total || 0)}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <BarChart
+            data={hourlyChartData}
+            height={200}
+            color="#3B82F6"
+          />
         )}
       </div>
+
+      {/* TREND */}
+      <div className="card" style={{ marginTop: 14 }}>
+        <div className="card-header">
+          <span className="card-title">
+            <TrendingUp size={15} /> Daily Revenue Trend
+          </span>
+        </div>
+
+        {loading ? (
+          <Skeleton rows={3} />
+        ) : (
+          <BarChart
+            data={trendData}
+            height={200}
+            color="#C9A96E"
+          />
+        )}
+      </div>
+
     </div>
   )
 }
