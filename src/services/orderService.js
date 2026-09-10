@@ -20,7 +20,6 @@ export async function createOrder(orderData, items) {
     const name = item.product_name || item.name || item.product_name_ar || item.name_ar || 'صنف'
     const nameAr = item.product_name_ar || item.name_ar || name
 
-    // معالجة آمنة للتصنيف لضمان حفظه كنص فقط (حل مشكلة كائنات الـ JSON)
     let cat = 'food'
     if (typeof item.category === 'string') {
       cat = item.category
@@ -194,6 +193,109 @@ export async function fetchOrders({
   })
 
   return { data: normalizedData, error: null }
+}
+
+export async function updateOrderItems(orderId, newItems, subtotal, totalAmount, vatAmount, discountAmount, extraUpdates = {}) {
+  const { data: oldOrder, error: fetchError } = await supabase
+    .from(TABLES.ORDERS)
+    .select(`*, order_items(*)`)
+    .eq('id', orderId)
+    .single()
+
+  if (fetchError || !oldOrder) {
+    return { data: null, error: fetchError?.message || 'Order not found' }
+  }
+
+  const existingItems = oldOrder.order_items || []
+
+  for (const newItem of newItems) {
+    if (!newItem.product_id) continue
+
+    const matchedOld = existingItems.find(o => String(o.product_id) === String(newItem.product_id))
+    const oldQty = matchedOld ? Number(matchedOld.quantity || 0) : 0
+    const newQty = Number(newItem.quantity || 0)
+    const qtyDiff = newQty - oldQty
+
+    if (qtyDiff > 0) {
+      const { data: product } = await supabase
+        .from(TABLES.PRODUCTS)
+        .select('category_slug, inventory_enabled, current_stock, current_weight, pieces_per_packet')
+        .eq('id', newItem.product_id)
+        .single()
+
+      if (product && product.inventory_enabled) {
+        let updatePayload = {}
+        if (product.category_slug === 'drinks') {
+          const newStock = Math.max(0, (product.current_stock || 0) - qtyDiff)
+          const pieces = product.pieces_per_packet || 1
+          const newPackets = Math.floor(newStock / pieces)
+          updatePayload = { current_stock: newStock, number_of_packets: newPackets }
+        } else if (product.category_slug === 'desserts') {
+          const newWeight = Math.max(0, (product.current_weight || 0) - qtyDiff)
+          updatePayload = { current_weight: newWeight }
+        } else {
+          const newStock = Math.max(0, (product.current_stock || 0) - qtyDiff)
+          updatePayload = { current_stock: newStock }
+        }
+
+        await supabase
+          .from(TABLES.PRODUCTS)
+          .update(updatePayload)
+          .eq('id', newItem.product_id)
+      }
+    }
+  }
+
+  const orderUpdatePayload = {
+    subtotal: subtotal,
+    total_amount: totalAmount,
+    vat_amount: vatAmount,
+    discount_amount: discountAmount,
+    updated_at: new Date().toISOString(),
+    ...extraUpdates
+  }
+
+  const { data: updatedOrder, error: updateError } = await supabase
+    .from(TABLES.ORDERS)
+    .update(orderUpdatePayload)
+    .eq('id', orderId)
+    .select()
+    .single()
+
+  if (updateError) {
+    return { data: null, error: updateError.message }
+  }
+
+  await supabase.from(TABLES.ORDER_ITEMS).delete().eq('order_id', orderId)
+
+  const itemsToInsert = newItems.map(item => ({
+    order_id: orderId,
+    product_id: item.product_id || null,
+    product_name: item.product_name || item.name || 'صنف',
+    product_name_ar: item.product_name_ar || item.name || 'صنف',
+    unit_price: Number(item.unit_price || item.price || 0),
+    quantity: Number(item.quantity || 1),
+    line_total: Number(item.line_total || item.total_price || 0),
+    category: item.category || 'food'
+  }))
+
+  const { data: insertedItems, error: itemsError } = await supabase
+    .from(TABLES.ORDER_ITEMS)
+    .insert(itemsToInsert)
+    .select()
+
+  if (itemsError) {
+    return { data: null, error: itemsError.message }
+  }
+
+  return {
+    data: {
+      ...updatedOrder,
+      items: insertedItems,
+      order_items: insertedItems
+    },
+    error: null
+  }
 }
 
 export async function updateOrderStatus(id, status) {
