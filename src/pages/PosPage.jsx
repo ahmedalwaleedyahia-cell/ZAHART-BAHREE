@@ -24,7 +24,11 @@ import {
     Utensils,
     Clock,
     ShoppingBag,
-    Truck
+    Truck,
+    Package,
+    Scale,
+    AlertCircle,
+    AlertTriangle
 } from 'lucide-react'
 
 export default function PosPage({ showToast }) {
@@ -180,7 +184,8 @@ body * {
                         {filtered.map(p => {
                             let isOutOfStock = false
                             let isLowStock = false
-                            let stockText = ''
+                            let stockLabel = ''
+                            let StockIcon = Package
 
                             const isFood = p.category_slug === 'food'
 
@@ -191,17 +196,20 @@ body * {
                                     const stock = Number(p.current_stock || 0)
                                     isOutOfStock = stock <= 0
                                     isLowStock = !isOutOfStock && stock <= minStock
-                                    stockText = `📦 Stock: ${stock}`
+                                    stockLabel = `Stock: ${stock}`
+                                    StockIcon = Package
                                 } else if (p.category_slug === 'desserts') {
                                     const weight = Number(p.current_weight || 0)
                                     isOutOfStock = weight <= 0
                                     isLowStock = !isOutOfStock && weight <= minStock
-                                    stockText = `⚖ Wt: ${weight} ${p.stock_unit || 'gram'}`
+                                    stockLabel = `Wt: ${weight} ${p.stock_unit || 'gram'}`
+                                    StockIcon = Scale
                                 } else {
                                     const generalStock = Number(p.current_stock ?? p.current_weight ?? 0)
                                     isOutOfStock = generalStock <= 0
                                     isLowStock = !isOutOfStock && generalStock <= minStock
-                                    stockText = `📦 Stock: ${generalStock}`
+                                    stockLabel = `Stock: ${generalStock}`
+                                    StockIcon = Package
                                 }
                             }
 
@@ -254,10 +262,21 @@ body * {
                                             )}
 
                                             {p.inventory_enabled && !isFood && (
-                                                <div style={{ fontSize: '11px', marginTop: '3px', fontWeight: '600' }}>
-                                                    <div>{stockText}</div>
-                                                    {isOutOfStock && <span style={{ color: 'var(--red)' }}>🔴 Out Of Stock</span>}
-                                                    {isLowStock && <span style={{ color: 'var(--amber)' }}>🟡 Low Stock</span>}
+                                                <div style={{ fontSize: '11px', marginTop: '3px', fontWeight: '600', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                        <StockIcon size={12} />
+                                                        <span>{stockLabel}</span>
+                                                    </div>
+                                                    {isOutOfStock && (
+                                                        <span style={{ color: 'var(--red)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                            <AlertCircle size={12} /> Out Of Stock
+                                                        </span>
+                                                    )}
+                                                    {isLowStock && (
+                                                        <span style={{ color: 'var(--amber)', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                                            <AlertTriangle size={12} /> Low Stock
+                                                        </span>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
