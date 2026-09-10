@@ -14,7 +14,8 @@ import {
   Camera,
   Search,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Scale
 } from 'lucide-react'
 
 export default function ProductsPage({ showToast }) {
@@ -60,14 +61,15 @@ export default function ProductsPage({ showToast }) {
     }
   }, [form, modalOpen])
 
-  // Automatic Drink Stock Calculation Rule
+  // Automatic Drink Stock Calculation Rule (Fixed & Accurate)
   useEffect(() => {
-    if (form.category_slug === 'drinks') {
-      const p = parseInt(form.pieces_per_packet, 10) || 0
-      const n = parseInt(form.number_of_packets, 10) || 0
-      setForm(f => ({ ...f, current_stock: p * n }))
+    if (form.category_slug === 'drinks' && form.inventory_enabled) {
+      const p = parseFloat(form.pieces_per_packet) || 0
+      const n = parseFloat(form.number_of_packets) || 0
+      const total = p * n
+      setForm(f => ({ ...f, current_stock: total }))
     }
-  }, [form.pieces_per_packet, form.number_of_packets, form.category_slug])
+  }, [form.pieces_per_packet, form.number_of_packets, form.category_slug, form.inventory_enabled])
 
   const [imageFile, setImageFile] = useState(null)
   const [imagePreview, setImagePreview] = useState('')
@@ -334,10 +336,12 @@ export default function ProductsPage({ showToast }) {
             <div className="card" style={{ marginBottom: 16, padding: 14 }}>
               <div
                 className="card-header"
-                style={{ marginBottom: drinksCardOpen ? 12 : 0, cursor: 'pointer' }}
+                style={{ marginBottom: drinksCardOpen ? 12 : 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                 onClick={() => setDrinksCardOpen(!drinksCardOpen)}
               >
-                <span className="card-title">📦 Inventory Management</span>
+                <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Package size={16} /> Inventory Management
+                </span>
                 {drinksCardOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </div>
               {drinksCardOpen && (
@@ -375,10 +379,12 @@ export default function ProductsPage({ showToast }) {
             <div className="card" style={{ marginBottom: 16, padding: 14 }}>
               <div
                 className="card-header"
-                style={{ marginBottom: dessertsCardOpen ? 12 : 0, cursor: 'pointer' }}
+                style={{ marginBottom: dessertsCardOpen ? 12 : 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
                 onClick={() => setDessertsCardOpen(!dessertsCardOpen)}
               >
-                <span className="card-title">🍰 Weight Inventory</span>
+                <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Scale size={16} /> Weight Inventory
+                </span>
                 {dessertsCardOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
               </div>
               {dessertsCardOpen && (
