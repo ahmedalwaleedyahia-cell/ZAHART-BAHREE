@@ -6,6 +6,7 @@ import { fmtNum } from '../utils/format.js'
 import Empty from '../components/ui/Empty.jsx'
 import Skeleton from '../components/ui/Skeleton.jsx'
 import { categoryIcons } from '../utils/categoryIcon.js'
+import { fetchProduct } from '../services/productService.js'
 import {
   Package,
   ShoppingBasket,
@@ -86,20 +87,28 @@ export default function ProductsPage({ showToast }) {
     setModalOpen(true)
   }
 
-  function openEdit(p) {
+  async function openEdit(p) {
+    let currentProduct = p
+    try {
+      const { data } = await fetchProduct(p.id)
+      if (data) currentProduct = data
+    } catch (err) {
+      console.error("Failed to fetch latest product data", err)
+    }
+
     setForm({
-      name: p.name || '', name_ar: p.name_ar || '', description: p.description || '',
-      price: p.price ?? '', category_id: p.category_id || '', category_slug: p.category_slug || 'food',
-      image_url: p.image_url || '', is_available: !!p.is_available,
-      inventory_enabled: p.inventory_enabled || false,
-      pieces_per_packet: p.pieces_per_packet ?? '',
-      number_of_packets: p.number_of_packets ?? '',
-      current_stock: p.current_stock ?? 0,
-      stock_unit: p.stock_unit || 'gram',
-      current_weight: p.current_weight ?? '',
-      minimum_stock: p.minimum_stock ?? ''
+      name: currentProduct.name || '', name_ar: currentProduct.name_ar || '', description: currentProduct.description || '',
+      price: currentProduct.price ?? '', category_id: currentProduct.category_id || '', category_slug: currentProduct.category_slug || 'food',
+      image_url: currentProduct.image_url || '', is_available: !!currentProduct.is_available,
+      inventory_enabled: currentProduct.inventory_enabled || false,
+      pieces_per_packet: currentProduct.pieces_per_packet ?? '',
+      number_of_packets: currentProduct.number_of_packets ?? '',
+      current_stock: currentProduct.current_stock ?? 0,
+      stock_unit: currentProduct.stock_unit || 'gram',
+      current_weight: currentProduct.current_weight ?? '',
+      minimum_stock: currentProduct.minimum_stock ?? ''
     })
-    setEditingId(p.id); setImageFile(null); setImagePreview(p.image_url || ''); setModalOpen(true)
+    setEditingId(currentProduct.id); setImageFile(null); setImagePreview(currentProduct.image_url || ''); setModalOpen(true)
   }
 
   function closeModal() {
