@@ -208,15 +208,16 @@ export async function updateOrderItems(orderId, newItems, subtotal, totalAmount,
 
   const existingItems = oldOrder.order_items || []
 
+  // 1. حساب الفارق وتحديث المخزون بناءً على التعديلات (زيادة أو نقصان)
   for (const newItem of newItems) {
     if (!newItem.product_id) continue
 
     const matchedOld = existingItems.find(o => String(o.product_id) === String(newItem.product_id))
     const oldQty = matchedOld ? Number(matchedOld.quantity || 0) : 0
     const newQty = Number(newItem.quantity || 0)
-    const qtyDiff = newQty - oldQty
+    const qtyDiff = newQty - oldQty // موجِب يعني زادت الكمية، سالب يعني نقصت
 
-    if (qtyDiff > 0) {
+    if (qtyDiff !== 0) {
       const { data: product } = await supabase
         .from(TABLES.PRODUCTS)
         .select('category_slug, inventory_enabled, current_stock, current_weight, pieces_per_packet')
@@ -242,6 +243,43 @@ export async function updateOrderItems(orderId, newItems, subtotal, totalAmount,
           .from(TABLES.PRODUCTS)
           .update(updatePayload)
           .eq('id', newItem.product_id)
+      }
+    }
+  }
+
+  // 2. إرجاع مخزون الأصناف التي تم حذفها بالكامل من الفاتورة
+  for (const oldItem of existingItems) {
+    if (!oldItem.product_id) continue
+    const stillExists = newItems.some(n => String(n.product_id) === String(oldItem.product_id))
+    if (!stillExists) {
+      const oldQty = Number(oldItem.quantity || 0)
+      if (oldQty > 0) {
+        const { data: product } = await supabase
+          .from(TABLES.PRODUCTS)
+          .select('category_slug, inventory_enabled, current_stock, current_weight, pieces_per_packet')
+          .eq('id', oldItem.product_id)
+          .single()
+
+        if (product && product.inventory_enabled) {
+          let updatePayload = {}
+          if (product.category_slug === 'drinks') {
+            const newStock = (product.current_stock || 0) + oldQty
+            const pieces = product.pieces_per_packet || 1
+            const newPackets = Math.floor(newStock / pieces)
+            updatePayload = { current_stock: newStock, number_of_packets: newPackets }
+          } else if (product.category_slug === 'desserts') {
+            const newWeight = (product.current_weight || 0) + oldQty
+            updatePayload = { current_weight: newWeight }
+          } else {
+            const newStock = (product.current_stock || 0) + oldQty
+            updatePayload = { current_stock: newStock }
+          }
+
+          await supabase
+            .from(TABLES.PRODUCTS)
+            .update(updatePayload)
+            .eq('id', oldItem.product_id)
+        }
       }
     }
   }

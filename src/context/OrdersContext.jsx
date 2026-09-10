@@ -1,6 +1,5 @@
 ﻿import { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react'
-import { createOrder, fetchOrders, fetchTodaySummary, subscribeToOrders, deleteOrder as deleteOrderService } from '../services/orderService.js'
-import { updateOrderStatus as updateOrderStatusService } from '../services/orderService.js'
+import { createOrder, fetchOrders, fetchTodaySummary, subscribeToOrders, deleteOrder as deleteOrderService, updateOrderStatus as updateOrderStatusService, updateOrderItems as updateOrderItemsService } from '../services/orderService.js'
 import { supabase, TABLES } from '../supabase/supabase.js'
 import { useAuth } from './AuthContext.jsx'
 import { useSettings } from './SettingsContext.jsx'
@@ -183,59 +182,19 @@ export function OrdersProvider({ children }) {
 
   const updateOrderItems = useCallback(async (orderId, newItems, newSubtotal, newTotal, newVatAmount = 0, newDiscountAmount = 0, extraUpdates = {}) => {
     try {
-      const { error: deleteError } = await supabase
-        .from(TABLES.ORDER_ITEMS)
-        .delete()
-        .eq('order_id', orderId)
+      const res = await updateOrderItemsService(
+        orderId,
+        newItems,
+        newSubtotal,
+        newTotal,
+        newVatAmount,
+        newDiscountAmount,
+        extraUpdates
+      )
 
-      if (deleteError) throw deleteError
+      if (res.error) throw new Error(res.error)
 
-      const formattedItems = newItems.map(item => ({
-        order_id: orderId,
-        product_id: item.product_id || item.id,
-        product_name: item.product_name || item.name || 'Item',
-        product_name_ar: item.product_name_ar || item.name_ar || item.name || null,
-        unit_price: Number(item.unit_price || item.price || 0),
-        quantity: Number(item.quantity || item.qty || 1),
-        line_total: Number(item.line_total || ((item.unit_price || item.price) * (item.quantity || item.qty))),
-        category: item.category || 'food'
-      }))
-
-      const { error: insertError } = await supabase
-        .from(TABLES.ORDER_ITEMS)
-        .insert(formattedItems)
-
-      if (insertError) throw insertError
-
-      const updatePayload = {
-        subtotal: newSubtotal,
-        total_amount: newTotal,
-        vat_amount: newVatAmount,
-        discount_amount: newDiscountAmount,
-        items: formattedItems,
-        ...(extraUpdates.invoice_number !== undefined && { invoice_number: extraUpdates.invoice_number }),
-        ...(extraUpdates.payment_method && { payment_method: extraUpdates.payment_method }),
-        ...(extraUpdates.order_type && { order_type: extraUpdates.order_type }),
-        ...(extraUpdates.notes !== undefined && { notes: extraUpdates.notes }),
-        ...(extraUpdates.cash_given !== undefined && { cash_given: extraUpdates.cash_given }),
-        ...(extraUpdates.change_amount !== undefined && { change_amount: extraUpdates.change_amount }),
-        ...(extraUpdates.created_at && { created_at: extraUpdates.created_at }),
-      }
-
-      const { data: updatedOrder, error: orderError } = await supabase
-        .from(TABLES.ORDERS)
-        .update(updatePayload)
-        .eq('id', orderId)
-        .select()
-        .single()
-
-      if (orderError) throw orderError
-
-      const fullUpdatedOrder = {
-        ...updatedOrder,
-        items: formattedItems,
-        order_items: formattedItems
-      }
+      const fullUpdatedOrder = res.data
 
       setOrders(prev => prev.map(o => o.id === orderId ? fullUpdatedOrder : o))
       if (lastOrder && lastOrder.id === orderId) {
