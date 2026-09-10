@@ -70,31 +70,38 @@ function normalizeCategory(category) {
 }
 
 // ============================================================
-// DATE HELPERS
+// DATE HELPERS (Matches DashboardPage exactly)
 // ============================================================
 
+const getLocalDateString = (dateInput) => {
+  if (!dateInput) return ''
+  const d = typeof dateInput === 'string' && dateInput.includes('T')
+    ? new Date(dateInput)
+    : new Date(dateInput)
+
+  if (isNaN(d.getTime())) return ''
+
+  const year = d.getFullYear()
+  const month = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 const formatDate = (date) => {
-  return date.toISOString().split('T')[0]
+  return getLocalDateString(date)
 }
 
 export default function AnalyticsPage() {
 
   // ----------------------------------------------------------
-  // FILTER STATE
+  // FILTER STATE (Defaults to Today, same as Dashboard)
   // ----------------------------------------------------------
 
-  const [activePreset, setActivePreset] = useState('all')
-
-  const [customRange, setCustomRange] = useState({
-    start: '',
-    end: '',
-  })
-
-  const [showCustom, setShowCustom] = useState(false)
+  const [activePreset, setActivePreset] = useState('custom')
 
   const [dateRange, setDateRange] = useState({
-    dateFrom: null,
-    dateTo: null,
+    dateFrom: getLocalDateString(new Date()),
+    dateTo: getLocalDateString(new Date()),
   })
 
   // ----------------------------------------------------------
@@ -131,51 +138,31 @@ export default function AnalyticsPage() {
   }, [availableProducts])
 
   // ==========================================================
-  // APPLY PRESET
+  // APPLY PRESET / RANGE
   // ==========================================================
 
   const applyPreset = (presetType) => {
     setActivePreset(presetType)
-    setShowCustom(false)
 
     const now = new Date()
-    let dateFrom = null
-    let dateTo = null
+    let dateFrom = ''
+    let dateTo = ''
 
     if (presetType === 'all') {
-      dateFrom = null
-      dateTo = null
+      dateFrom = ''
+      dateTo = ''
     } else if (presetType === 'current_month') {
-      dateFrom = formatDate(new Date(now.getFullYear(), now.getMonth(), 1))
-      dateTo = formatDate(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+      dateFrom = getLocalDateString(new Date(now.getFullYear(), now.getMonth(), 1))
+      dateTo = getLocalDateString(new Date(now.getFullYear(), now.getMonth() + 1, 0))
     } else if (presetType === 'previous_month') {
-      dateFrom = formatDate(new Date(now.getFullYear(), now.getMonth() - 1, 1))
-      dateTo = formatDate(new Date(now.getFullYear(), now.getMonth(), 0))
+      dateFrom = getLocalDateString(new Date(now.getFullYear(), now.getMonth() - 1, 1))
+      dateTo = getLocalDateString(new Date(now.getFullYear(), now.getMonth(), 0))
     } else if (presetType === 'current_year') {
       dateFrom = `${now.getFullYear()}-01-01`
       dateTo = `${now.getFullYear()}-12-31`
     }
 
     setDateRange({ dateFrom, dateTo })
-  }
-
-  // ==========================================================
-  // CUSTOM RANGE
-  // ==========================================================
-
-  const handleCustomApply = (e) => {
-    e.preventDefault()
-
-    if (!customRange.start || !customRange.end) return
-    if (customRange.start > customRange.end) return
-
-    setActivePreset('custom')
-    setShowCustom(false)
-
-    setDateRange({
-      dateFrom: customRange.start,
-      dateTo: customRange.end,
-    })
   }
 
   // ==========================================================
@@ -190,9 +177,15 @@ export default function AnalyticsPage() {
 
       try {
         const { dateFrom, dateTo } = dateRange
+        const start = dateFrom ? new Date(dateFrom) : new Date()
+        const end = dateTo ? new Date(dateTo) : new Date()
+        const diffDays = Math.max(
+          1,
+          Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1
+        )
 
         const [d, h, c] = await Promise.all([
-          safeCall(fetchDailySales, 7, { dateFrom, dateTo }),
+          safeCall(fetchDailySales, diffDays, { dateFrom, dateTo }),
           safeCall(fetchHourlySales, { dateFrom, dateTo }),
           safeCall(fetchCategoryBreakdown, { dateFrom, dateTo }),
         ])
@@ -223,40 +216,28 @@ export default function AnalyticsPage() {
   }, [dateRange])
 
   // ==========================================================
-  // FILTER ORDERS
+  // FILTER ORDERS (Matching Dashboard Logic Exactly)
   // ==========================================================
 
   const periodFilteredOrders = useMemo(() => {
-    if (!orders) return []
+    if (!Array.isArray(orders)) return []
 
     return orders.filter(order => {
       if (order.status === 'cancelled') return false
 
       const rawDate = order.created_at || order.date
-      if (!rawDate) return false
+      const orderDateStr = getLocalDateString(rawDate)
+      if (!orderDateStr) return false
 
-      const orderDate = new Date(rawDate)
-      if (isNaN(orderDate.getTime())) return false
-
-      if (!dateRange.dateFrom && !dateRange.dateTo) return true
-
-      const start = dateRange.dateFrom
-        ? new Date(`${dateRange.dateFrom}T00:00:00.000Z`)
-        : null
-
-      const end = dateRange.dateTo
-        ? new Date(`${dateRange.dateTo}T23:59:59.999Z`)
-        : null
-
-      if (start && orderDate < start) return false
-      if (end && orderDate > end) return false
+      if (dateRange.dateFrom && orderDateStr < dateRange.dateFrom) return false
+      if (dateRange.dateTo && orderDateStr > dateRange.dateTo) return false
 
       return true
     })
   }, [orders, dateRange])
 
   // ==========================================================
-  // METRICS
+  // METRICS (Consistent with Dashboard calculation rules)
   // ==========================================================
 
   const totalRev = useMemo(
@@ -305,7 +286,7 @@ export default function AnalyticsPage() {
         label: 'Revenue (Selected Period)',
         value: `AED ${fmtNum(totalRev)}`,
         type: 'revenue',
-        subtitle: 'Gross interval value',
+        subtitle: dateRange.dateFrom && dateRange.dateTo ? `${dateRange.dateFrom} to ${dateRange.dateTo}` : 'All time interval',
       },
       {
         id: 'an-ord',
@@ -329,7 +310,7 @@ export default function AnalyticsPage() {
         subtitle: 'Card payments',
       },
     ]),
-    [totalRev, totalOrds, cashRev, visaRev]
+    [totalRev, totalOrds, cashRev, visaRev, dateRange]
   )
 
   // ==========================================================
@@ -382,7 +363,7 @@ export default function AnalyticsPage() {
   }, [periodFilteredOrders, productCategoryMap, categoryData])
 
   // ==========================================================
-  // HOURLY CHART DATA (Fixed for matching format)
+  // HOURLY CHART DATA
   // ==========================================================
 
   const hourlyChartData = useMemo(() => {
@@ -507,64 +488,32 @@ export default function AnalyticsPage() {
           >
             Current Year
           </button>
-
-          <button
-            onClick={() => setShowCustom(!showCustom)}
-            style={{
-              background: activePreset === 'custom' ? 'var(--gold, #C9A96E)' : 'transparent',
-              color: activePreset === 'custom' ? 'var(--surf1, #000000)' : 'var(--txt1, #000000)',
-              border: activePreset === 'custom' ? '1px solid var(--gold, #C9A96E)' : '1px solid var(--bdr, #ccc)',
-              fontWeight: activePreset === 'custom' ? '700' : '500',
-              padding: '6px 14px',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <Clock3 size={14} />
-            Custom Range
-          </button>
         </div>
 
-        {showCustom && (
-          <form
-            onSubmit={handleCustomApply}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'var(--surf3, #f9f9f9)',
-              border: '1px solid var(--bdr, #eee)',
-              padding: '6px 12px',
-              borderRadius: 8,
+        {/* Custom Range Inputs directly matching DashboardPage */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--txt1, #000000)' }}>Custom:</span>
+          <input
+            type="date"
+            value={dateRange.dateFrom || ''}
+            onChange={(e) => {
+              setActivePreset('custom')
+              setDateRange(prev => ({ ...prev, dateFrom: e.target.value }))
             }}
-          >
-            <input
-              type="date"
-              value={customRange.start}
-              onChange={e => setCustomRange(prev => ({ ...prev, start: e.target.value }))}
-              required
-              style={{ background: 'var(--surf1, #ffffff)', color: 'var(--txt1, #000000)', border: '1px solid var(--bdr, #ccc)', borderRadius: 6, padding: '4px 8px' }}
-            />
-            <span style={{ color: 'var(--txt1, #000000)', fontSize: 13, fontWeight: 500 }}>to</span>
-            <input
-              type="date"
-              value={customRange.end}
-              min={customRange.start || undefined}
-              onChange={e => setCustomRange(prev => ({ ...prev, end: e.target.value }))}
-              required
-              style={{ background: 'var(--surf1, #ffffff)', color: 'var(--txt1, #000000)', border: '1px solid var(--bdr, #ccc)', borderRadius: 6, padding: '4px 8px' }}
-            />
-            <button
-              type="submit"
-              style={{ background: 'var(--gold, #C9A96E)', color: 'var(--surf1, #000000)', border: 'none', borderRadius: 6, padding: '6px 10px', cursor: 'pointer' }}
-            >
-              ✓
-            </button>
-          </form>
-        )}
+            style={{ background: 'var(--surf1, #ffffff)', color: 'var(--txt1, #000000)', border: '1px solid var(--bdr, #ccc)', borderRadius: 6, padding: '4px 8px' }}
+          />
+          <span style={{ color: 'var(--txt1, #000000)', fontSize: 13, fontWeight: 500 }}>to</span>
+          <input
+            type="date"
+            value={dateRange.dateTo || ''}
+            min={dateRange.dateFrom || undefined}
+            onChange={(e) => {
+              setActivePreset('custom')
+              setDateRange(prev => ({ ...prev, dateTo: e.target.value }))
+            }}
+            style={{ background: 'var(--surf1, #ffffff)', color: 'var(--txt1, #000000)', border: '1px solid var(--bdr, #ccc)', borderRadius: 6, padding: '4px 8px' }}
+          />
+        </div>
       </div>
 
       <UnifiedStatCards cards={unifiedAnalyticsCards} loading={loading} />
